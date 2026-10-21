@@ -97,15 +97,49 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-        store = ModelStore(this)
-        tts = TextToSpeech(this, this)
-        if (SpeechRecognizer.isRecognitionAvailable(this)) {
-            createSpeechRecognizer()
+
+        // Render the UI first. Optional voice/AI engines must never be allowed
+        // to block or crash the first screen on lower-end Android devices.
+        try {
+            store = ModelStore(this)
+            buildUi()
+            applyWallpaper()
+            refresh()
+        } catch (e: Throwable) {
+            showStartupError(e)
+            return
+        }
+
+        // Start optional services only after the first screen is visible.
+        try {
+            tts = TextToSpeech(this, this)
+        } catch (_: Throwable) {
+            ttsReady = false
         }
         initLocalVoiceEngine()
-        buildUi()
-        applyWallpaper()
-        refresh()
+    }
+
+    private fun showStartupError(e: Throwable) {
+        val message = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+        val view = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+            setBackgroundColor(Color.rgb(4, 4, 5))
+        }
+        view.addView(tv("RedUI", 32f, Color.WHITE).apply {
+            typeface = Typeface.DEFAULT_BOLD
+        })
+        view.addView(tv("The main screen could not be created.", 16f, Color.LTGRAY).apply {
+            setPadding(0, dp(12), 0, dp(8))
+        })
+        view.addView(tv(message, 12f, Color.rgb(235, 80, 88)).apply {
+            setPadding(0, 0, 0, dp(18))
+        })
+        view.addView(button("RESTART REDUI", true) {
+            recreate()
+        })
+        setContentView(view)
     }
 
     override fun onDestroy() {
@@ -287,6 +321,13 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         }
         if (ContextCompat.checkSelfPermission(this,Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.RECORD_AUDIO),9001); return
+        }
+        if (speech==null) {
+            try {
+                if (SpeechRecognizer.isRecognitionAvailable(this)) {
+                    createSpeechRecognizer()
+                }
+            } catch (_: Throwable) {}
         }
         if (speech==null) { Toast.makeText(this,"Speech recognition is not available on this phone",Toast.LENGTH_LONG).show(); return }
         if (model==null) { status.text="LOCAL • import RedAI.gguf first"; return }
