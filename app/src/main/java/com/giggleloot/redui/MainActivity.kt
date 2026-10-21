@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var ttsReady = false
     private var selectedVoiceName = ""
     private var localTts: OfflineTts? = null
-    private var localVoiceKey = "kokoro-0"
+    private var localVoiceKey = "lessac"
     private var localSpeakerId = 0
     private var localTtsSpeed = 1.0f
     private var localPlayer: MediaPlayer? = null
@@ -393,22 +393,11 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     }
 
     private fun initLocalVoiceEngine() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val savedKey = prefs.getString("local_voice_key", "kokoro-0") ?: "kokoro-0"
-                localVoiceKey = savedKey
-                localSpeakerId = speakerIdFor(savedKey)
-                val engine = buildLocalVoiceEngine(savedKey)
-                withContext(Dispatchers.Main) {
-                    localTts = engine
-                    status.text = "LOCAL • ready • natural offline voices installed"
-                }
-            } catch (e: Throwable) {
-                withContext(Dispatchers.Main) {
-                    localTts = null
-                    status.text = "LOCAL • system voice fallback • " + (e.message ?: "offline voice unavailable")
-                }
-            }
+        // Do not load the large Kokoro model during app startup on low-memory phones.
+        // Keep startup lightweight and load a voice only when it is actually selected.
+        lifecycleScope.launch(Dispatchers.Main) {
+            localTts = null
+            status.text = "LOCAL • ready • offline voice engine available"
         }
     }
 
