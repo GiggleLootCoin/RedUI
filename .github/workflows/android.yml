@@ -40,18 +40,21 @@ jobs:
         run: |
           mkdir -p app/libs app/src/main/assets/tts
           curl -L --fail --retry 3 -o app/libs/sherpa-onnx-1.13.8.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar
-          for MODEL in             vits-piper-en_GB-semaine-medium-int8             vits-piper-en_GB-cori-medium             vits-piper-en_US-amy-low             vits-piper-en_US-lessac-medium; do
+          for MODEL in             kokoro-int8-en-v0_19             vits-piper-en_GB-cori-medium             vits-piper-en_US-amy-medium             vits-piper-en_US-lessac-medium; do
             curl -L --fail --retry 3 -o "/tmp/$MODEL.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$MODEL.tar.bz2"
             tar -xjf "/tmp/$MODEL.tar.bz2" -C app/src/main/assets/tts
             rm "/tmp/$MODEL.tar.bz2"
           done
           echo "Installed offline voice files:"
           find app/src/main/assets/tts -maxdepth 4 -type f -printf '%p %s bytes\n'
-          test -s app/src/main/assets/tts/vits-piper-en_GB-semaine-medium-int8/en_GB-semaine-medium-int8.onnx
+          test -s app/src/main/assets/tts/kokoro-int8-en-v0_19/model.int8.onnx
+          test -s app/src/main/assets/tts/kokoro-int8-en-v0_19/voices.bin
+          test -s app/src/main/assets/tts/kokoro-int8-en-v0_19/tokens.txt
+          test -d app/src/main/assets/tts/kokoro-int8-en-v0_19/espeak-ng-data
           test -s app/src/main/assets/tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx
-          test -s app/src/main/assets/tts/vits-piper-en_US-amy-low/en_US-amy-low.onnx
+          test -s app/src/main/assets/tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx
           test -s app/src/main/assets/tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx
-          for DIR in             vits-piper-en_GB-semaine-medium-int8             vits-piper-en_GB-cori-medium             vits-piper-en_US-amy-low             vits-piper-en_US-lessac-medium; do
+          for DIR in             vits-piper-en_GB-cori-medium             vits-piper-en_US-amy-medium             vits-piper-en_US-lessac-medium; do
             test -s "app/src/main/assets/tts/$DIR/tokens.txt"
             test -d "app/src/main/assets/tts/$DIR/espeak-ng-data"
             test "$(find "app/src/main/assets/tts/$DIR/espeak-ng-data" -type f | wc -l)" -gt 0
@@ -69,7 +72,7 @@ jobs:
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
           echo "Checking APK contains all bundled offline TTS voices:"
-          for ASSET in             'assets/tts/vits-piper-en_GB-semaine-medium-int8/en_GB-semaine-medium-int8.onnx'             'assets/tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx'             'assets/tts/vits-piper-en_US-amy-low/en_US-amy-low.onnx'             'assets/tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx'; do
+          for ASSET in             'assets/tts/kokoro-int8-en-v0_19/model.int8.onnx'             'assets/tts/kokoro-int8-en-v0_19/voices.bin'             'assets/tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx'             'assets/tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx'             'assets/tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx'; do
             unzip -l "$APK" | grep -q "$ASSET"
           done
 
