@@ -69,14 +69,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
 
     private val redAiSystemPrompt = """
-You are RedAI, created by Red (LittleRedBigSmile).
+You are RedAI, created by Red (Little Red Big Smile).
 You are Red's personal local AI assistant inside RedUI.
 Your identity is RedAI. Never claim to be TensorFlow, CaffeNet, VGG, ResNet, EfficientNet, another unrelated model, or a different assistant.
 Do not invent a task or pretend the user asked for something they did not ask.
 Answer the user's actual message directly.
 Be natural, useful, honest, concise, and technically capable.
 You run locally in RedUI. Do not claim to have internet access, files, tools, sensors, or abilities that are not actually available.
-If asked who you are, say you are RedAI, created by Red, running locally in RedUI.
+If asked who you are, say you are RedAI, created by Red, running locally in Red U I. The app name is displayed as RedUI, but when speaking it aloud, pronounce it as Red U I. Never pronounce it as Reduey or any other variation. The creator name is exactly Little Red Big Smile, never Little Red Big Smile.
 """.trimIndent()
 
     private val pickModel = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -247,7 +247,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = .12f
         })
-        creatorText.addView(tv("LittleRedBigSmile • Red",13f,Color.WHITE).apply {
+        creatorText.addView(tv("Little Red Big Smile • Red",13f,Color.WHITE).apply {
             typeface = Typeface.DEFAULT_BOLD
         })
         creator.addView(creatorText,LinearLayout.LayoutParams(0,-2,1f))
@@ -393,12 +393,12 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     }
 
     private fun initLocalVoiceEngine() {
-        // Do not load the large Kokoro model during app startup on low-memory phones.
-        // Keep startup lightweight and load a voice only when it is actually selected.
-        lifecycleScope.launch(Dispatchers.Main) {
-            localTts = null
-            status.text = "LOCAL • ready • offline voice engine available"
-        }
+        // Keep startup light on low-memory phones. Load the neural voice only when speech is requested.
+        localVoiceKey = prefs.getString("local_voice_key", "lessac") ?: "lessac"
+        localSpeakerId = speakerIdFor(localVoiceKey)
+        prefs.edit().putBoolean("local_voice", true).apply()
+        localTts = null
+        status.text = "LOCAL • ready • offline voice engine available"
     }
 
     private fun speakerIdFor(key: String): Int = when (key) {
@@ -506,12 +506,13 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
                     localTts?.release()
                     localTts = engine
                     status.text = "LOCAL • $label • ready"
-                    Toast.makeText(this@MainActivity, "$label selected", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "$label selected • testing voice", Toast.LENGTH_SHORT).show()
+                    speakWithLocalVoice("Hello. I am $label. This is a Red U I voice test.")
                 }
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {
-                    status.text = "LOCAL • voice unavailable • " + (e.message ?: key)
-                    Toast.makeText(this@MainActivity, "Could not load $label", Toast.LENGTH_LONG).show()
+                    status.text = "LOCAL • $label FAILED • " + (e.message ?: "unknown voice error")
+                    Toast.makeText(this@MainActivity, "$label failed to load. Android fallback is disabled so the problem is visible.", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -539,7 +540,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
                     p.setOnErrorListener { _,_,_ -> localPlayer?.release(); localPlayer=null; wav.delete(); speakWithAndroidTts(text); true }
                     p.prepare(); p.start()
                 }
-            } catch (_: Throwable) { withContext(Dispatchers.Main) { speakWithAndroidTts(text) } }
+            } catch (e: Throwable) { withContext(Dispatchers.Main) { status.text = "LOCAL • voice playback failed • " + (e.message ?: "unknown error"); if (handsFree) resumeListening() } }
         }
     }
 
@@ -643,7 +644,56 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     }
 
     private fun cleanForSpeech(s:String)=s.replace(Regex("<think>[\\s\\S]*?</think>"),"").replace(Regex("<\\|[^>]+\\|>"),"").trim()
-    private fun speak(s:String){if(s.isBlank()){if(handsFree)startListening();return};stopLocalSpeech();if(localTts!=null)speakWithLocalVoice(s) else speakWithAndroidTts(s)}
+    private fun speak(s:String){
+        if(s.isBlank()){if(handsFree)startListening();return}
+        stopLocalSpeech()
+        if (prefs.getBoolean("local_voice", true)) {
+            if (localTts != null) {
+                speakWithLocalVoice(s)
+            } else {
+                val key = prefs.getString("local_voice_key", localVoiceKey) ?: localVoiceKey
+                localVoiceKey = key
+                localSpeakerId = speakerIdFor(key)
+                val label = localVoiceLabel(key)
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        val engine = buildLocalVoiceEngine(key)
+                        withContext(Dispatchers.Main) {
+                            localTts?.release()
+                            localTts = engine
+                            status.text = "LOCAL • $label • ready"
+                            speakWithLocalVoice(s)
+                        }
+                    } catch (e: Throwable) {
+                        withContext(Dispatchers.Main) {
+                            status.text = "LOCAL • $label FAILED • " + (e.message ?: "unknown voice error")
+                            if (handsFree) resumeListening()
+                        }
+                    }
+                }
+            }
+        } else {
+            speakWithAndroidTts(s)
+        }
+    }
+
+    private fun localVoiceLabel(key:String):String = when(key) {
+        "kokoro-0" -> "Kokoro • af"
+        "kokoro-1" -> "Kokoro • Bella"
+        "kokoro-2" -> "Kokoro • Nicole"
+        "kokoro-3" -> "Kokoro • Sarah"
+        "kokoro-4" -> "Kokoro • Sky"
+        "kokoro-5" -> "Kokoro • Adam"
+        "kokoro-6" -> "Kokoro • Michael"
+        "kokoro-7" -> "Kokoro • Emma"
+        "kokoro-8" -> "Kokoro • Isabella"
+        "kokoro-9" -> "Kokoro • George"
+        "kokoro-10" -> "Kokoro • Lewis"
+        "lessac" -> "Piper • Lessac"
+        "amy" -> "Piper • Amy"
+        "cori" -> "Piper • Cori"
+        else -> key
+    }
     private fun speakWithAndroidTts(s:String){
         if(s.isBlank()){if(handsFree)startListening();return}
         if(!::tts.isInitialized){
