@@ -396,7 +396,6 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         // Keep startup light on low-memory phones. Load the neural voice only when speech is requested.
         localVoiceKey = prefs.getString("local_voice_key", "lessac") ?: "lessac"
         localSpeakerId = speakerIdFor(localVoiceKey)
-        prefs.edit().putBoolean("local_voice", true).apply()
         localTts = null
         status.text = "LOCAL • ready • offline voice engine available"
     }
