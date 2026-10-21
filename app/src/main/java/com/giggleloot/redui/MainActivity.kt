@@ -300,7 +300,12 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         box.addView(button("SET MY PROFILE PICTURE"){pickUserAvatar.launch(arrayOf("image/*"))})
         box.addView(button("SET REDAI PROFILE PICTURE"){pickAiAvatar.launch(arrayOf("image/*"))})
         box.addView(button("SET CHAT WALLPAPER"){pickWallpaper.launch(arrayOf("image/*"))})
-        box.addView(button(if(speakReplies)"VOICE REPLIES: ON" else "VOICE REPLIES: OFF"){speakReplies=!speakReplies;(it as Button).text=if(speakReplies)"VOICE REPLIES: ON" else "VOICE REPLIES: OFF"})
+        lateinit var voiceButton: Button
+        voiceButton = button(if(speakReplies)"VOICE REPLIES: ON" else "VOICE REPLIES: OFF") {
+            speakReplies = !speakReplies
+            voiceButton.text = if(speakReplies) "VOICE REPLIES: ON" else "VOICE REPLIES: OFF"
+        }
+        box.addView(voiceButton)
         box.addView(button("TEST REDAI VOICE"){speak("Hello. This is RedAI speaking locally through RedUI.")})
         box.addView(button("RESET WALLPAPER"){prefs.edit().remove("wallpaper").apply();wallpaper.setImageDrawable(null);wallpaper.visibility=View.GONE})
         AlertDialog.Builder(this).setTitle("RedUI • Personalize").setView(box).setPositiveButton("DONE",null).show()
