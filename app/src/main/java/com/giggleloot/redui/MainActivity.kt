@@ -111,9 +111,10 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
             try { applyWallpaper() } catch (_: Throwable) {}
             try { refresh() } catch (_: Throwable) { status.text = "LOCAL • ready" }
 
-            // Optional services never get to block first-frame rendering.
-            try { tts = TextToSpeech(this, this) } catch (_: Throwable) { ttsReady = false }
-            try { initLocalVoiceEngine() } catch (_: Throwable) {}
+            // Voice engines are intentionally lazy-loaded. Some Galaxy A12 builds can
+            // crash when native speech assets initialize during the first frame.
+            // RedUI must remain fully usable even if voice initialization fails.
+            ttsReady = false
         }
     }
 
@@ -534,7 +535,14 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     private fun cleanForSpeech(s:String)=s.replace(Regex("<think>[\\s\\S]*?</think>"),"").replace(Regex("<\\|[^>]+\\|>"),"").trim()
     private fun speak(s:String){if(s.isBlank()){if(handsFree)startListening();return};stopLocalSpeech();if(localTts!=null)speakWithLocalVoice(s) else speakWithAndroidTts(s)}
-    private fun speakWithAndroidTts(s:String){if(!ttsReady){if(handsFree)startListening();return};tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"redai-"+System.currentTimeMillis())}
+    private fun speakWithAndroidTts(s:String){
+        if(s.isBlank()){if(handsFree)startListening();return}
+        if(!::tts.isInitialized){
+            try { tts = TextToSpeech(this, this) } catch (_: Throwable) { ttsReady=false }
+        }
+        if(!ttsReady){if(handsFree)startListening();return}
+        tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"redai-"+System.currentTimeMillis())
+    }
     private fun resumeListening(){if(handsFree&&!generating)handler.postDelayed({startListening()},450)}
 
     private fun deleteSelectedModel(){val f=model?:return;AlertDialog.Builder(this).setTitle("Delete model?").setMessage("Remove "+f.name+" from RedUI? The original file outside RedUI is not affected.").setNegativeButton("CANCEL",null).setPositiveButton("DELETE"){_,_->f.delete();model=null;refresh()}.show()}
