@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -27,6 +28,11 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.k2fsa.sherpa.onnx.OfflineTts
+import com.k2fsa.sherpa.onnx.OfflineTtsConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
+import com.k2fsa.sherpa.onnx.GenerationConfig
 import com.llamatik.library.platform.GenStream
 import com.llamatik.library.platform.LlamaBridge
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +60,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var generating = false
     private var ttsReady = false
     private var selectedVoiceName = ""
+    private var localTts: OfflineTts? = null
+    private var localSpeakerId = 0
+    private var localTtsSpeed = 1.0f
+    private var localPlayer: MediaPlayer? = null
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
 
     private val redAiSystemPrompt = """
@@ -92,6 +102,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         if (SpeechRecognizer.isRecognitionAvailable(this)) {
             createSpeechRecognizer()
         }
+        initLocalVoiceEngine()
         buildUi()
         applyWallpaper()
         refresh()
@@ -100,6 +111,9 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     override fun onDestroy() {
         handsFree = false
         speech?.destroy()
+        stopLocalSpeech()
+        localTts?.release()
+        localTts = null
         handler.removeCallbacksAndMessages(null)
         if (::tts.isInitialized) { tts.stop(); tts.shutdown() }
         super.onDestroy()
@@ -175,6 +189,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         spinner=Spinner(this)
         modelCard.addView(spinner,LinearLayout.LayoutParams(-1,dp(50)))
         modelCard.addView(button("DELETE SELECTED MODEL"){ deleteSelectedModel() },LinearLayout.LayoutParams(-1,dp(44)).apply{topMargin=dp(4)})
+        modelCard.addView(button("WEB SEARCH"){showWebSearch()},LinearLayout.LayoutParams(-1,dp(44)).apply{topMargin=dp(4)})
         modelCard.addView(button("BEST PERFORMANCE"){
             prefs.edit().putBoolean("best_performance",true).apply()
             Toast.makeText(this,"Galaxy A12 preset saved • 2048 context • 4 threads • streaming",Toast.LENGTH_SHORT).show()
@@ -201,6 +216,59 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         content.addView(composer,LinearLayout.LayoutParams(-1,dp(68)))
         root.addView(content,FrameLayout.LayoutParams(-1,-1))
         setContentView(root)
+    }
+
+    private fun initLocalVoiceEngine() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val config = OfflineTtsConfig(
+                    model = OfflineTtsModelConfig(
+                        vits = OfflineTtsVitsModelConfig(
+                            model = "tts/vits-piper-en_GB-semaine-medium-int8/en_GB-semaine-medium-int8.onnx",
+                            tokens = "tts/vits-piper-en_GB-semaine-medium-int8/tokens.txt",
+                            dataDir = "tts/vits-piper-en_GB-semaine-medium-int8/espeak-ng-data"
+                        ),
+                        numThreads = 2,
+                        debug = false,
+                        provider = "cpu"
+                    ),
+                    maxNumSentences = 1
+                )
+                val engine = OfflineTts(assets, config)
+                withContext(Dispatchers.Main) { localTts = engine }
+            } catch (_: Throwable) {}
+        }
+    }
+
+    private fun stopLocalSpeech() {
+        try { localPlayer?.stop() } catch (_: Throwable) {}
+        localPlayer?.release()
+        localPlayer = null
+    }
+
+    private fun speakWithLocalVoice(text: String) {
+        val engine = localTts
+        if (engine == null || text.isBlank()) { speakWithAndroidTts(text); return }
+        stopLocalSpeech()
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val audio = engine.generateWithConfig(text, GenerationConfig(sid=localSpeakerId, speed=localTtsSpeed, silenceScale=.2f))
+                val wav = File(cacheDir, "redui-voice.wav")
+                audio.save(wav.absolutePath)
+                withContext(Dispatchers.Main) {
+                    if (!handsFree && !speakReplies) return@withContext
+                    val p = MediaPlayer()
+                    localPlayer = p
+                    p.setDataSource(wav.absolutePath)
+                    p.setOnCompletionListener { localPlayer?.release(); localPlayer=null; wav.delete(); resumeListening() }
+                    p.setOnErrorListener { _,_,_ -> localPlayer?.release(); localPlayer=null; wav.delete(); speakWithAndroidTts(text); true }
+                    p.prepare()
+                    p.start()
+                }
+            } catch (_: Throwable) {
+                withContext(Dispatchers.Main) { speakWithAndroidTts(text) }
+            }
+        }
     }
 
     private fun createSpeechRecognizer() {
@@ -244,7 +312,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE,Locale.getDefault())
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,1)
-                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE,true)
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE,false)
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,700L)
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,1200L)
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,900L)
@@ -312,7 +380,16 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     }
 
     private fun cleanForSpeech(s:String)=s.replace(Regex("<think>[\\s\\S]*?</think>"),"").replace(Regex("<\\|[^>]+\\|>"),"").trim()
-    private fun speak(s:String){if(!ttsReady||s.isBlank()){if(handsFree)startListening();return};tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"redai-"+System.currentTimeMillis())}
+    private fun speak(s:String){
+        if(s.isBlank()){if(handsFree)startListening();return}
+        stopLocalSpeech()
+        if(localTts!=null){speakWithLocalVoice(s);return}
+        speakWithAndroidTts(s)
+    }
+    private fun speakWithAndroidTts(s:String){
+        if(!ttsReady){if(handsFree)startListening();return}
+        tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"redai-"+System.currentTimeMillis())
+    }
     private fun resumeListening(){if(handsFree&&!generating)handler.postDelayed({startListening()},450)}
 
     private fun deleteSelectedModel() {
@@ -328,6 +405,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         box.addView(tv("REDUI SETTINGS",11f,Color.rgb(235,48,58)).apply{typeface=Typeface.DEFAULT_BOLD;letterSpacing=.12f})
         box.addView(button("PERSONALIZE"){showPersonalize()})
         box.addView(button("VOICE CHOICES"){showVoiceChoices()})
+        box.addView(button("WEB SEARCH"){showWebSearch()})
         box.addView(button("TALK LIVE"){toggleHandsFree()})
         box.addView(button("BEST PERFORMANCE"){prefs.edit().putBoolean("best_performance",true).apply();Toast.makeText(this,"Galaxy A12 performance preset saved.",Toast.LENGTH_SHORT).show()})
         box.addView(tv("RedAI • Qwen3.5-0.8B + Red’s Ways Of Thinking • Q4_K_M",11f,Color.LTGRAY).apply{setPadding(0,dp(10),0,dp(6))})
@@ -340,19 +418,67 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     }
 
     private fun showVoiceChoices() {
-        if(!ttsReady){Toast.makeText(this,"Voice engine is still starting.",Toast.LENGTH_SHORT).show();return}
-        val voices=tts.voices.filter{it.locale.language==Locale.getDefault().language}.sortedBy{it.name}
-        if(voices.isEmpty()){
-            AlertDialog.Builder(this).setTitle("Voice Choices").setMessage("No additional voices are installed on this phone yet.")
-                .setPositiveButton("VOICE SETTINGS"){_,_->startActivity(Intent("com.android.settings.TTS_SETTINGS"))}
-                .setNegativeButton("CLOSE",null).show();return
-        }
-        val labels=voices.map{" + it.name + " + if(it.isNetworkConnectionRequired) " • online" else " • offline"}.toTypedArray()
+        localSpeakerId = prefs.getInt("local_speaker", 0).coerceIn(0,3)
+        val labels = arrayOf("Offline British Voice 1","Offline British Voice 2","Offline British Voice 3","Offline British Voice 4","Android system voices…")
+        AlertDialog.Builder(this).setTitle("RedUI • Voice Choices")
+            .setSingleChoiceItems(labels, localSpeakerId) { d, which ->
+                if(which < 4) {
+                    localSpeakerId = which
+                    prefs.edit().putInt("local_speaker", which).putBoolean("local_voice", true).apply()
+                    Toast.makeText(this, "Offline voice " + (which + 1) + " selected", Toast.LENGTH_SHORT).show()
+                } else {
+                    val voices=if(ttsReady) tts.voices.filter{it.locale.language==Locale.getDefault().language}.sortedBy{it.name} else emptyList()
+                    if(voices.isNotEmpty()) showAndroidVoiceChoices(voices) else Toast.makeText(this, "No Android system voices are installed.", Toast.LENGTH_LONG).show()
+                }
+                d.dismiss()
+            }.setNegativeButton("CLOSE",null).show()
+    }
+
+    private fun showAndroidVoiceChoices(voices: List<android.speech.tts.Voice>) {
+        val labels=voices.map{it.name + if(it.isNetworkConnectionRequired) " • online" else " • offline"}.toTypedArray()
         val current=voices.indexOfFirst{it.name==selectedVoiceName}.coerceAtLeast(0)
-        AlertDialog.Builder(this).setTitle("RedUI • Voice Choices").setSingleChoiceItems(labels,current){d,which->
-            val v=voices[which];tts.voice=v;selectedVoiceName=v.name;prefs.edit().putString("tts_voice",v.name).apply();d.dismiss()
+        AlertDialog.Builder(this).setTitle("Android System Voices").setSingleChoiceItems(labels,current){d,which->
+            val v=voices[which]
+            tts.voice=v; selectedVoiceName=v.name
+            prefs.edit().putString("tts_voice",v.name).putBoolean("local_voice",false).apply()
+            d.dismiss()
         }.setNeutralButton("GET MORE VOICES"){_,_->startActivity(Intent("com.android.settings.TTS_SETTINGS"))}
          .setNegativeButton("CLOSE",null).show()
+    }
+
+    private fun showWebSearch() {
+        val q=EditText(this).apply{hint="Search the web…";setTextColor(Color.WHITE);setHintTextColor(Color.GRAY);textSize=16f;setSingleLine(true)}
+        AlertDialog.Builder(this).setTitle("RedUI • Web Search").setView(q).setNegativeButton("CLOSE",null)
+            .setPositiveButton("SEARCH"){_,_->runWebSearch(q.text.toString().trim())}.show()
+    }
+
+    private fun runWebSearch(query:String) {
+        if(query.isBlank())return
+        status.text="WEB • searching…"
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val encoded=java.net.URLEncoder.encode(query,"UTF-8")
+                val conn=java.net.URL("https://html.duckduckgo.com/html/?q="+encoded).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout=8000; conn.readTimeout=10000; conn.setRequestProperty("User-Agent","Mozilla/5.0 RedUI")
+                val html=conn.inputStream.bufferedReader().use{it.readText()}; conn.disconnect()
+                val text=android.text.Html.fromHtml(html.replace(Regex("(?is)<script.*?</script>"),"").replace(Regex("(?is)<style.*?</style>"),"").replace(Regex("(?is)<[^>]+>")," ")).toString().replace(Regex("\\s+")," ").trim()
+                withContext(Dispatchers.Main) {
+                    status.text="WEB • results ready"
+                    AlertDialog.Builder(this@MainActivity).setTitle("Web results • "+query).setMessage(if(text.length>9000) text.take(9000)+"…" else text)
+                        .setPositiveButton("OPEN IN BRAVE"){_,_->openWebSearchInBrowser(query)}.setNegativeButton("DONE",null).show()
+                }
+            } catch(_:Throwable) {
+                withContext(Dispatchers.Main) {
+                    status.text="WEB • browser fallback"
+                    AlertDialog.Builder(this@MainActivity).setTitle("Web search").setMessage("The in-app search service did not return results. You can continue the same search in Brave.")
+                        .setPositiveButton("OPEN IN BRAVE"){_,_->openWebSearchInBrowser(query)}.setNegativeButton("CLOSE",null).show()
+                }
+            }
+        }
+    }
+
+    private fun openWebSearchInBrowser(query:String) {
+        startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+java.net.URLEncoder.encode(query,"UTF-8"))))
     }
 
     private fun showPersonalize() {
