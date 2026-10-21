@@ -1,0 +1,2 @@
+package com.giggleloot.redui
+data class PerformanceSettings(val temperature:Float=.70f,val maxTokens:Int=512,val topP:Float=.90f,val topK:Int=40,val repeatPenalty:Float=1.10f,val contextLength:Int=2048,val numThreads:Int=4,val useMmap:Boolean=true,val flashAttention:Boolean=true,val batchSize:Int=128,val gpuLayers:Int=0,val minP:Float=.05f)
