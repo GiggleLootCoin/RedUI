@@ -111,10 +111,12 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
             try { applyWallpaper() } catch (_: Throwable) {}
             try { refresh() } catch (_: Throwable) { status.text = "LOCAL • ready" }
 
-            // Voice engines are intentionally lazy-loaded. Some Galaxy A12 builds can
-            // crash when native speech assets initialize during the first frame.
-            // RedUI must remain fully usable even if voice initialization fails.
+            // Initialize speech only after the first frame is on screen. The previous
+            // build never called initLocalVoiceEngine(), so the bundled Piper voices
+            // could never become available and every reply silently fell back to Android TTS.
             ttsReady = false
+            try { tts = TextToSpeech(this@MainActivity, this@MainActivity) } catch (_: Throwable) { ttsReady = false }
+            initLocalVoiceEngine()
         }
     }
 
@@ -391,6 +393,15 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     private fun initLocalVoiceEngine() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Verify the APK actually contains the model before constructing sherpa.
+                val modelAsset = "tts/vits-piper-en_GB-semaine-medium-int8/en_GB-semaine-medium-int8.onnx"
+                val tokensAsset = "tts/vits-piper-en_GB-semaine-medium-int8/tokens.txt"
+                val dataAsset = "tts/vits-piper-en_GB-semaine-medium-int8/espeak-ng-data"
+                assets.open(modelAsset).close()
+                assets.open(tokensAsset).close()
+                assets.list(dataAsset)?.takeIf { it.isNotEmpty() }
+                    ?: throw IllegalStateException("Bundled voice phonemizer data is missing")
+
                 val config = OfflineTtsConfig(
                     model = OfflineTtsModelConfig(
                         vits = OfflineTtsVitsModelConfig(
@@ -403,8 +414,20 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
                     maxNumSentences = 1
                 )
                 val engine = OfflineTts(assets, config)
-                withContext(Dispatchers.Main) { localTts = engine }
-            } catch (_: Throwable) {}
+                withContext(Dispatchers.Main) {
+                    localTts = engine
+                    if (!isFinishing && !isDestroyed) {
+                        status.text = "LOCAL • ready • offline voices installed"
+                    }
+                }
+            } catch (e: Throwable) {
+                withContext(Dispatchers.Main) {
+                    localTts = null
+                    if (!isFinishing && !isDestroyed) {
+                        status.text = "LOCAL • system voice fallback • " + (e.message ?: "offline voice unavailable")
+                    }
+                }
+            }
         }
     }
 
@@ -563,12 +586,46 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     private fun showVoiceChoices(){
         localSpeakerId=prefs.getInt("local_speaker",0).coerceIn(0,3)
-        val labels=arrayOf("Offline British Voice 1","Offline British Voice 2","Offline British Voice 3","Offline British Voice 4","Android system voices…")
+        val labels=arrayOf(
+            "Offline • Prudence",
+            "Offline • Spike",
+            "Offline • Obadiah",
+            "Offline • Poppy",
+            "Android system voices…"
+        )
         AlertDialog.Builder(this).setTitle("RedUI • Voice Choices").setSingleChoiceItems(labels,localSpeakerId){d,which->
             if(which<4){localSpeakerId=which;prefs.edit().putInt("local_speaker",which).putBoolean("local_voice",true).apply();Toast.makeText(this,"Offline voice "+(which+1)+" selected",Toast.LENGTH_SHORT).show()}
-            else {val voices=if(ttsReady)tts.voices.filter{it.locale.language==Locale.getDefault().language}.sortedBy{it.name}else emptyList();if(voices.isNotEmpty())showAndroidVoiceChoices(voices)else Toast.makeText(this,"No Android system voices are installed.",Toast.LENGTH_LONG).show()}
+            else {
+                ensureAndroidTts {
+                    val voices = if (ttsReady) tts.voices
+                        .filter { it.locale.language == Locale.getDefault().language }
+                        .sortedBy { it.name }
+                    else emptyList()
+                    if (voices.isNotEmpty()) showAndroidVoiceChoices(voices)
+                    else Toast.makeText(this, "No Android system voices are installed.", Toast.LENGTH_LONG).show()
+                }
+            }
             d.dismiss()
         }.setNegativeButton("CLOSE",null).show()
+    }
+
+    private fun ensureAndroidTts(onReady: () -> Unit) {
+        if (ttsReady) {
+            onReady()
+            return
+        }
+        try {
+            if (!::tts.isInitialized) {
+                tts = TextToSpeech(this, this)
+            }
+            handler.postDelayed({
+                if (ttsReady) onReady()
+                else Toast.makeText(this, "Android TTS is still initializing. Try again in a moment.", Toast.LENGTH_SHORT).show()
+            }, 700)
+        } catch (_: Throwable) {
+            ttsReady = false
+            Toast.makeText(this, "Android system speech is unavailable.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun showAndroidVoiceChoices(voices:List<android.speech.tts.Voice>){
