@@ -1,7 +1,6 @@
 package com.giggleloot.redui
 
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -35,6 +34,17 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var speakReplies = false
     private var ttsReady = false
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
+
+    private val redAiSystemPrompt = """
+You are RedAI, created by Red (LittleRedBigSmile).
+You are Red's personal local AI assistant inside RedUI.
+Your identity is RedAI. Never claim to be TensorFlow, CaffeNet, VGG, ResNet, EfficientNet, another unrelated model, or a different assistant.
+Do not invent a task or pretend the user asked for something they did not ask.
+Answer the user's actual message directly.
+Be natural, useful, honest, concise, and technically capable.
+You run locally in RedUI. Do not claim to have internet access, files, tools, sensors, or abilities that are not actually available in the current chat.
+If asked who you are, say you are RedAI, created by Red, running locally in RedUI.
+""".trimIndent()
 
     private val pickModel = registerForActivityResult(ActivityResultContracts.OpenDocument()) { u: Uri? ->
         u ?: return@registerForActivityResult
@@ -116,7 +126,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         row.addView(Button(this).apply {
             text = "BEST PERFORMANCE"
             setOnClickListener {
-                Toast.makeText(this@MainActivity, "2048 context • 4 threads • batch 128 • mmap ON • streaming ON", Toast.LENGTH_LONG).show()
+                prefs.edit().putBoolean("best_performance", true).apply()
+                Toast.makeText(this@MainActivity, "Best-performance preset saved: 2048 context • 4 threads • batch 128 • mmap • streaming", Toast.LENGTH_LONG).show()
             }
         })
         content.addView(row)
@@ -140,6 +151,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             hint = "Message RedAI…"
             setTextColor(Color.WHITE)
             setHintTextColor(Color.GRAY)
+            setSingleLine(false)
         }
         bottom.addView(input, LinearLayout.LayoutParams(0, 70, 1f))
         bottom.addView(Button(this).apply { text = "SEND"; setOnClickListener { send() } })
@@ -210,16 +222,44 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 status.text = if (model == null) "LOCAL • import a GGUF" else "LOCAL • " + model!!.name
             }
         }
-        sel?.let { x ->
+        val preferred = sel ?: fs.firstOrNull { it.name.equals("RedAI.gguf", true) }?.name
+        preferred?.let { x ->
             val i = names.indexOf(x)
-            if (i >= 0) spinner.setSelection(i)
+            if (i >= 0) {
+                spinner.setSelection(i)
+                model = fs.getOrNull(i)
+                status.text = if (model == null) "LOCAL • import a GGUF" else "LOCAL • " + model!!.name
+            }
         }
+    }
+
+    private fun buildPrompt(userPrompt: String): String {
+        val history = msgs.dropLast(1).takeLast(8)
+        val sb = StringBuilder()
+        sb.append("<|im_start|>system\n")
+        sb.append(redAiSystemPrompt)
+        sb.append("\n<|im_end|>\n")
+        for (m in history) {
+            val role = if (m.role == "user") "user" else "assistant"
+            if (m.text.isBlank()) continue
+            sb.append("<|im_start|>").append(role).append("\n")
+            sb.append(m.text)
+            sb.append("\n<|im_end|>\n")
+        }
+        sb.append("<|im_start|>user\n")
+        sb.append(userPrompt)
+        sb.append("\n<|im_end|>\n<|im_start|>assistant\n")
+        return sb.toString()
     }
 
     private fun send() {
         val prompt = input.text.toString().trim()
         val f = model
-        if (prompt.isEmpty() || f == null) return
+        if (prompt.isEmpty()) return
+        if (f == null) {
+            status.text = "LOCAL • import RedAI.gguf or another compatible GGUF first"
+            return
+        }
         input.text.clear()
         msgs.add(ChatMessage("user", prompt))
         adapter.notifyItemInserted(msgs.lastIndex)
@@ -231,8 +271,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             try {
                 LlamaBridge.updateGenerateParams(.70f, 512, .90f, 40, 1.10f, 2048, 4, true, true, 128, 0)
                 if (!LlamaBridge.initGenerateModel(f.absolutePath)) throw Exception("Could not load GGUF")
-                withContext(Dispatchers.Main) { status.text = "LOCAL • generating" }
-                LlamaBridge.generateStream(prompt, object : GenStream {
+                withContext(Dispatchers.Main) { status.text = "LOCAL • generating • " + f.name }
+                LlamaBridge.generateStream(buildPrompt(prompt), object : GenStream {
                     override fun onDelta(t: String) {
                         runOnUiThread {
                             msgs[ai] = msgs[ai].copy(text = msgs[ai].text + t)
@@ -242,8 +282,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     }
                     override fun onComplete() {
                         runOnUiThread {
-                            status.text = "LOCAL • ready"
-                            if (speakReplies) speak(msgs[ai].text)
+                            status.text = "LOCAL • ready • " + f.name
+                            if (speakReplies) speak(cleanForSpeech(msgs[ai].text))
                         }
                     }
                     override fun onError(e: String) {
@@ -254,6 +294,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 withContext(Dispatchers.Main) { status.text = "LOCAL • " + (e.message ?: "error") }
             }
         }
+    }
+
+    private fun cleanForSpeech(text: String): String {
+        return text.replace(Regex("<think>[\\s\\S]*?</think>"), "")
+            .replace(Regex("< ?\|[^>]+\|>"), "")
+            .trim()
     }
 
     private fun speak(text: String) {
