@@ -586,28 +586,43 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     }
 
     private fun showVoiceChoices(){
-        localSpeakerId=prefs.getInt("local_speaker",0).coerceIn(0,3)
-        val labels=arrayOf(
+        val saved = prefs.getString("local_voice_key", "semaine-prudence") ?: "semaine-prudence"
+        localSpeakerId = when (saved) {
+            "semaine-spike" -> 1
+            "semaine-obadiah" -> 2
+            "semaine-poppy" -> 3
+            else -> 0
+        }
+        val keys = arrayOf("semaine-prudence","semaine-spike","semaine-obadiah","semaine-poppy","cori","amy","lessac","android")
+        val labels = arrayOf(
             "Offline • Prudence",
             "Offline • Spike",
             "Offline • Obadiah",
             "Offline • Poppy",
+            "Offline • Cori",
+            "Offline • Amy",
+            "Offline • Lessac",
             "Android system voices…"
         )
-        AlertDialog.Builder(this).setTitle("RedUI • Voice Choices").setSingleChoiceItems(labels,localSpeakerId){d,which->
-            if(which<4){localSpeakerId=which;prefs.edit().putInt("local_speaker",which).putBoolean("local_voice",true).apply();Toast.makeText(this,"Offline voice "+(which+1)+" selected",Toast.LENGTH_SHORT).show()}
-            else {
-                ensureAndroidTts {
-                    val voices = if (ttsReady) tts.voices
-                        .filter { it.locale.language == Locale.getDefault().language }
-                        .sortedBy { it.name }
-                    else emptyList()
-                    if (voices.isNotEmpty()) showAndroidVoiceChoices(voices)
-                    else Toast.makeText(this, "No Android system voices are installed.", Toast.LENGTH_LONG).show()
+        val current = keys.indexOf(saved).takeIf { it >= 0 } ?: 0
+        AlertDialog.Builder(this).setTitle("RedUI • Voice Choices")
+            .setSingleChoiceItems(labels,current){d,which->
+                when (keys[which]) {
+                    "semaine-prudence" -> { localSpeakerId=0; selectLocalVoice("semaine-prudence","Offline • Prudence") }
+                    "semaine-spike" -> { localSpeakerId=1; selectLocalVoice("semaine-spike","Offline • Spike") }
+                    "semaine-obadiah" -> { localSpeakerId=2; selectLocalVoice("semaine-obadiah","Offline • Obadiah") }
+                    "semaine-poppy" -> { localSpeakerId=3; selectLocalVoice("semaine-poppy","Offline • Poppy") }
+                    "cori" -> { localSpeakerId=0; selectLocalVoice("cori","Offline • Cori") }
+                    "amy" -> { localSpeakerId=0; selectLocalVoice("amy","Offline • Amy") }
+                    "lessac" -> { localSpeakerId=0; selectLocalVoice("lessac","Offline • Lessac") }
+                    "android" -> ensureAndroidTts {
+                        val voices = if (ttsReady) tts.voices.filter { it.locale.language == Locale.getDefault().language }.sortedBy { it.name } else emptyList()
+                        if (voices.isNotEmpty()) showAndroidVoiceChoices(voices)
+                        else Toast.makeText(this, "No Android system voices are installed.", Toast.LENGTH_LONG).show()
+                    }
                 }
-            }
-            d.dismiss()
-        }.setNegativeButton("CLOSE",null).show()
+                d.dismiss()
+            }.setNegativeButton("CLOSE",null).show()
     }
 
     private fun ensureAndroidTts(onReady: () -> Unit) {
