@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var handsFree = false
     private var generating = false
     private var ttsReady = false
+    private var selectedVoiceName = ""
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
 
     private val redAiSystemPrompt = """
@@ -85,8 +86,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         store = ModelStore(this)
         tts = TextToSpeech(this, this)
         if (SpeechRecognizer.isRecognitionAvailable(this)) {
-            speech = SpeechRecognizer.createSpeechRecognizer(this)
-            speech?.setRecognitionListener(recognitionListener)
+            createSpeechRecognizer()
         }
         buildUi()
         applyWallpaper()
@@ -106,6 +106,8 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         if (!ttsReady) return
         tts.language = Locale.getDefault()
         tts.setSpeechRate(prefs.getFloat("tts_speed", 1f))
+        selectedVoiceName = prefs.getString("tts_voice", "") ?: ""
+        if (selectedVoiceName.isNotBlank()) tts.voices.firstOrNull { it.name == selectedVoiceName }?.let { tts.voice = it }
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(id: String?) {}
             override fun onDone(id: String?) { resumeListening() }
@@ -149,7 +151,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
             typeface=Typeface.DEFAULT_BOLD; letterSpacing=.08f
         })
         header.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
-        header.addView(button("PERSONALIZE"){showPersonalize()})
+        header.addView(button("SETTINGS"){showSettings()})
         content.addView(header)
 
         val hero=LinearLayout(this).apply {
@@ -164,7 +166,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         val modelCard=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;background=panel(Color.rgb(13,13,15));setPadding(dp(12),dp(9),dp(12),dp(9))}
         val modelHead=LinearLayout(this).apply{gravity=Gravity.CENTER_VERTICAL}
         modelHead.addView(tv("MODEL",10f,Color.GRAY).apply{typeface=Typeface.DEFAULT_BOLD;letterSpacing=.12f},LinearLayout.LayoutParams(0,dp(38),1f))
-        modelHead.addView(button("IMPORT GGUF"){pickModel.launch(arrayOf("*/*"))},LinearLayout.LayoutParams(dp(120),dp(42)))
+        modelHead.addView(button("IMPORT GGUF"){pickModel.launch(arrayOf("application/octet-stream","application/x-gguf","*/*"))},LinearLayout.LayoutParams(dp(120),dp(42)))
         modelCard.addView(modelHead)
         spinner=Spinner(this)
         modelCard.addView(spinner,LinearLayout.LayoutParams(-1,dp(50)))
@@ -194,6 +196,15 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         content.addView(composer,LinearLayout.LayoutParams(-1,dp(68)))
         root.addView(content,FrameLayout.LayoutParams(-1,-1))
         setContentView(root)
+    }
+
+    private fun createSpeechRecognizer() {
+        speech?.destroy()
+        speech = null
+        if (SpeechRecognizer.isRecognitionAvailable(this)) {
+            speech = SpeechRecognizer.createSpeechRecognizer(this)
+            speech?.setRecognitionListener(recognitionListener)
+        }
     }
 
     private fun toggleHandsFree() {
@@ -228,6 +239,10 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE,Locale.getDefault())
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,1)
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE,true)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,700L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,1200L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,900L)
                 }
                 voiceState.text="LISTENING • speak naturally"; speech?.startListening(i)
             } catch(_:Throwable) { voiceState.text="MIC ERROR • tap TALK LIVE again" }
@@ -240,7 +255,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         override fun onRmsChanged(v:Float){}
         override fun onBufferReceived(b:ByteArray?){}
         override fun onEndOfSpeech(){if(handsFree)voiceState.text="THINKING • sending"}
-        override fun onError(e:Int){if(handsFree)handler.postDelayed({startListening()},500)}
+        override fun onError(e:Int){if(handsFree){createSpeechRecognizer();handler.postDelayed({startListening()},700)}}
         override fun onResults(r:Bundle?) {
             val text=r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim().orEmpty()
             if(handsFree && text.isNotBlank()){input.setText(text);send(true)} else if(handsFree)startListening()
