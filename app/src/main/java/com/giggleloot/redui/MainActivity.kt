@@ -72,7 +72,11 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         lifecycleScope.launch(Dispatchers.IO) {
             val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
                 ?.use { if (it.moveToFirst()) it.getString(0) else "model.gguf" } ?: "model.gguf"
-            val f = store.destination(if (name.endsWith(".gguf", true)) name else name + ".gguf")
+            if (!name.endsWith(".gguf", true)) {
+                withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "RedUI only imports .GGUF model files. ZIP files are not models.", Toast.LENGTH_LONG).show() }
+                return@launch
+            }
+            val f = store.destination(name)
             contentResolver.openInputStream(uri)?.use { a -> f.outputStream().use { b -> a.copyTo(b) } }
             withContext(Dispatchers.Main) { refresh(f.name) }
         }
@@ -170,6 +174,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         modelCard.addView(modelHead)
         spinner=Spinner(this)
         modelCard.addView(spinner,LinearLayout.LayoutParams(-1,dp(50)))
+        modelCard.addView(button("DELETE SELECTED MODEL"){ deleteSelectedModel() },LinearLayout.LayoutParams(-1,dp(44)).apply{topMargin=dp(4)})
         modelCard.addView(button("BEST PERFORMANCE"){
             prefs.edit().putBoolean("best_performance",true).apply()
             Toast.makeText(this,"Galaxy A12 preset saved • 2048 context • 4 threads • streaming",Toast.LENGTH_SHORT).show()
@@ -309,6 +314,46 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     private fun cleanForSpeech(s:String)=s.replace(Regex("<think>[\\s\\S]*?</think>"),"").replace(Regex("<\\|[^>]+\\|>"),"").trim()
     private fun speak(s:String){if(!ttsReady||s.isBlank()){if(handsFree)startListening();return};tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"redai-"+System.currentTimeMillis())}
     private fun resumeListening(){if(handsFree&&!generating)handler.postDelayed({startListening()},450)}
+
+    private fun deleteSelectedModel() {
+        val f = model ?: return
+        AlertDialog.Builder(this).setTitle("Delete model?")
+            .setMessage("Remove " + f.name + " from RedUI? The original file outside RedUI is not affected.")
+            .setNegativeButton("CANCEL", null)
+            .setPositiveButton("DELETE") { _, _ -> f.delete(); model=null; refresh() }.show()
+    }
+
+    private fun showSettings() {
+        val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(22),dp(4),dp(22),dp(4))}
+        box.addView(tv("REDUI SETTINGS",11f,Color.rgb(235,48,58)).apply{typeface=Typeface.DEFAULT_BOLD;letterSpacing=.12f})
+        box.addView(button("PERSONALIZE"){showPersonalize()})
+        box.addView(button("VOICE CHOICES"){showVoiceChoices()})
+        box.addView(button("TALK LIVE"){toggleHandsFree()})
+        box.addView(button("BEST PERFORMANCE"){prefs.edit().putBoolean("best_performance",true).apply();Toast.makeText(this,"Galaxy A12 performance preset saved.",Toast.LENGTH_SHORT).show()})
+        box.addView(tv("RedAI • Qwen3.5-0.8B + Red’s Ways Of Thinking • Q4_K_M",11f,Color.LTGRAY).apply{setPadding(0,dp(10),0,dp(6))})
+        box.addView(tv("Created by Little Red Big Smile — Red",12f,Color.WHITE).apply{
+            setPadding(0,dp(8),0,dp(4))
+            setOnClickListener{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.youtube.com/@Little-Red-Big-Smile")))}
+        })
+        box.addView(tv("YouTube • Little Red Big Smile",11f,Color.rgb(235,48,58)))
+        AlertDialog.Builder(this).setTitle("RedUI • Settings").setView(box).setPositiveButton("DONE",null).show()
+    }
+
+    private fun showVoiceChoices() {
+        if(!ttsReady){Toast.makeText(this,"Voice engine is still starting.",Toast.LENGTH_SHORT).show();return}
+        val voices=tts.voices.filter{it.locale.language==Locale.getDefault().language}.sortedBy{it.name}
+        if(voices.isEmpty()){
+            AlertDialog.Builder(this).setTitle("Voice Choices").setMessage("No additional voices are installed on this phone yet.")
+                .setPositiveButton("VOICE SETTINGS"){_,_->startActivity(Intent("com.android.settings.TTS_SETTINGS"))}
+                .setNegativeButton("CLOSE",null).show();return
+        }
+        val labels=voices.map{" + it.name + " + if(it.isNetworkConnectionRequired) " • online" else " • offline"}.toTypedArray()
+        val current=voices.indexOfFirst{it.name==selectedVoiceName}.coerceAtLeast(0)
+        AlertDialog.Builder(this).setTitle("RedUI • Voice Choices").setSingleChoiceItems(labels,current){d,which->
+            val v=voices[which];tts.voice=v;selectedVoiceName=v.name;prefs.edit().putString("tts_voice",v.name).apply();d.dismiss()
+        }.setNeutralButton("GET MORE VOICES"){_,_->startActivity(Intent("com.android.settings.TTS_SETTINGS"))}
+         .setNegativeButton("CLOSE",null).show()
+    }
 
     private fun showPersonalize() {
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(26),dp(4),dp(26),dp(4))}
