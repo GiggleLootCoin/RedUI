@@ -40,15 +40,22 @@ jobs:
         run: |
           mkdir -p app/libs app/src/main/assets/tts
           curl -L --fail --retry 3 -o app/libs/sherpa-onnx-1.13.8.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar
-          curl -L --fail --retry 3 -o /tmp/semaine.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_GB-semaine-medium-int8.tar.bz2
-          tar -xjf /tmp/semaine.tar.bz2 -C app/src/main/assets/tts
-          rm /tmp/semaine.tar.bz2
+          for MODEL in             vits-piper-en_GB-semaine-medium-int8             vits-piper-en_GB-cori-medium             vits-piper-en_US-amy-low             vits-piper-en_US-lessac-medium; do
+            curl -L --fail --retry 3 -o "/tmp/$MODEL.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$MODEL.tar.bz2"
+            tar -xjf "/tmp/$MODEL.tar.bz2" -C app/src/main/assets/tts
+            rm "/tmp/$MODEL.tar.bz2"
+          done
           echo "Installed offline voice files:"
-          find app/src/main/assets/tts -maxdepth 4 -type f -printf '%p %s bytes\\n'
+          find app/src/main/assets/tts -maxdepth 4 -type f -printf '%p %s bytes\n'
           test -s app/src/main/assets/tts/vits-piper-en_GB-semaine-medium-int8/en_GB-semaine-medium-int8.onnx
-          test -s app/src/main/assets/tts/vits-piper-en_GB-semaine-medium-int8/tokens.txt
-          test -d app/src/main/assets/tts/vits-piper-en_GB-semaine-medium-int8/espeak-ng-data
-          test "$(find app/src/main/assets/tts/vits-piper-en_GB-semaine-medium-int8/espeak-ng-data -type f | wc -l)" -gt 0
+          test -s app/src/main/assets/tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx
+          test -s app/src/main/assets/tts/vits-piper-en_US-amy-low/en_US-amy-low.onnx
+          test -s app/src/main/assets/tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx
+          for DIR in             vits-piper-en_GB-semaine-medium-int8             vits-piper-en_GB-cori-medium             vits-piper-en_US-amy-low             vits-piper-en_US-lessac-medium; do
+            test -s "app/src/main/assets/tts/$DIR/tokens.txt"
+            test -d "app/src/main/assets/tts/$DIR/espeak-ng-data"
+            test "$(find "app/src/main/assets/tts/$DIR/espeak-ng-data" -type f | wc -l)" -gt 0
+          done
 
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
@@ -61,10 +68,10 @@ jobs:
           find app/build/outputs -maxdepth 5 -type f -print
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
-          echo "Checking APK contains bundled offline TTS assets:"
-          unzip -l "$APK" | grep -E 'tts/vits-piper-en_GB-semaine-medium-int8/(en_GB-semaine-medium-int8.onnx|tokens.txt|espeak-ng-data)' | head -20
-          unzip -l "$APK" | grep -q 'assets/tts/vits-piper-en_GB-semaine-medium-int8/en_GB-semaine-medium-int8.onnx'
-          unzip -l "$APK" | grep -q 'assets/tts/vits-piper-en_GB-semaine-medium-int8/tokens.txt'
+          echo "Checking APK contains all bundled offline TTS voices:"
+          for ASSET in             'assets/tts/vits-piper-en_GB-semaine-medium-int8/en_GB-semaine-medium-int8.onnx'             'assets/tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx'             'assets/tts/vits-piper-en_US-amy-low/en_US-amy-low.onnx'             'assets/tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx'; do
+            unzip -l "$APK" | grep -q "$ASSET"
+          done
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
