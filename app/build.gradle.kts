@@ -10,8 +10,8 @@ android {
         applicationId = "com.giggleloot.redui"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
     }
     // RedUI is being distributed as a Galaxy A12 build. The A12 uses ARM64,
     // so excluding unused CPU architectures makes the APK substantially smaller
