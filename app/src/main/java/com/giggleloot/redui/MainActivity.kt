@@ -32,6 +32,7 @@ import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig
 import com.k2fsa.sherpa.onnx.GenerationConfig
 import com.llamatik.library.platform.GenStream
 import com.llamatik.library.platform.LlamaBridge
@@ -61,7 +62,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var ttsReady = false
     private var selectedVoiceName = ""
     private var localTts: OfflineTts? = null
-    private var localVoiceKey = "semaine-prudence"
+    private var localVoiceKey = "kokoro-0"
     private var localSpeakerId = 0
     private var localTtsSpeed = 1.0f
     private var localPlayer: MediaPlayer? = null
@@ -394,19 +395,13 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     private fun initLocalVoiceEngine() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val savedKey = prefs.getString("local_voice_key", "semaine-prudence") ?: "semaine-prudence"
-                val speaker = when (savedKey) {
-                    "semaine-spike" -> 1
-                    "semaine-obadiah" -> 2
-                    "semaine-poppy" -> 3
-                    else -> 0
-                }
+                val savedKey = prefs.getString("local_voice_key", "kokoro-0") ?: "kokoro-0"
                 localVoiceKey = savedKey
-                localSpeakerId = speaker
+                localSpeakerId = speakerIdFor(savedKey)
                 val engine = buildLocalVoiceEngine(savedKey)
                 withContext(Dispatchers.Main) {
                     localTts = engine
-                    status.text = "LOCAL • ready • offline voices installed"
+                    status.text = "LOCAL • ready • natural offline voices installed"
                 }
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {
@@ -417,18 +412,74 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         }
     }
 
+    private fun speakerIdFor(key: String): Int = when (key) {
+        "kokoro-0" -> 0
+        "kokoro-1" -> 1
+        "kokoro-2" -> 2
+        "kokoro-3" -> 3
+        "kokoro-4" -> 4
+        "kokoro-5" -> 5
+        "kokoro-6" -> 6
+        "kokoro-7" -> 7
+        "kokoro-8" -> 8
+        "kokoro-9" -> 9
+        "kokoro-10" -> 10
+        else -> 0
+    }
+
     private fun buildLocalVoiceEngine(key: String): OfflineTts {
-        val dir = when (key) {
-            "cori" -> "tts/vits-piper-en_GB-cori-medium"
-            "amy" -> "tts/vits-piper-en_US-amy-low"
-            "lessac" -> "tts/vits-piper-en_US-lessac-medium"
-            else -> "tts/vits-piper-en_GB-semaine-medium-int8"
+        val kokoroNames = arrayOf(
+            "af", "af_bella", "af_nicole", "af_sarah", "af_sky",
+            "am_adam", "am_michael", "bf_emma", "bf_isabella", "bm_george", "bm_lewis"
+        )
+        if (key.startsWith("kokoro-")) {
+            val sid = key.removePrefix("kokoro-").toIntOrNull() ?: 0
+            if (sid !in 0..10) throw IllegalArgumentException("Invalid Kokoro voice")
+            val dir = "tts/kokoro-int8-en-v0_19"
+            val modelAsset = "$dir/model.int8.onnx"
+            val voicesAsset = "$dir/voices.bin"
+            val tokensAsset = "$dir/tokens.txt"
+            val dataAsset = "$dir/espeak-ng-data"
+            assets.open(modelAsset).close()
+            assets.open(voicesAsset).close()
+            assets.open(tokensAsset).close()
+            assets.list(dataAsset)?.takeIf { it.isNotEmpty() }
+                ?: throw IllegalStateException("Kokoro voice assets are missing")
+            return OfflineTts(
+                assets,
+                OfflineTtsConfig(
+                    model = OfflineTtsModelConfig(
+                        kokoro = OfflineTtsKokoroModelConfig(
+                            model = modelAsset,
+                            voices = voicesAsset,
+                            tokens = tokensAsset,
+                            dataDir = dataAsset
+                        ),
+                        numThreads = 2,
+                        debug = false,
+                        provider = "cpu"
+                    ),
+                    maxNumSentences = 1
+                )
+            )
         }
-        val model = when (key) {
-            "cori" -> "en_GB-cori-medium.onnx"
-            "amy" -> "en_US-amy-low.onnx"
-            "lessac" -> "en_US-lessac-medium.onnx"
-            else -> "en_GB-semaine-medium-int8.onnx"
+
+        val dir: String
+        val model: String
+        when (key) {
+            "lessac" -> {
+                dir = "tts/vits-piper-en_US-lessac-medium"
+                model = "en_US-lessac-medium.onnx"
+            }
+            "amy" -> {
+                dir = "tts/vits-piper-en_US-amy-medium"
+                model = "en_US-amy-medium.onnx"
+            }
+            "cori" -> {
+                dir = "tts/vits-piper-en_GB-cori-medium"
+                model = "en_GB-cori-medium.onnx"
+            }
+            else -> throw IllegalArgumentException("Unknown offline voice: $key")
         }
         val modelAsset = "$dir/$model"
         val tokensAsset = "$dir/tokens.txt"
@@ -457,6 +508,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     private fun selectLocalVoice(key: String, label: String) {
         localVoiceKey = key
+        localSpeakerId = speakerIdFor(key)
         prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", true).apply()
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -630,40 +682,39 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     }
 
     private fun showVoiceChoices(){
-        val saved = prefs.getString("local_voice_key", "semaine-prudence") ?: "semaine-prudence"
-        localSpeakerId = when (saved) {
-            "semaine-spike" -> 1
-            "semaine-obadiah" -> 2
-            "semaine-poppy" -> 3
-            else -> 0
-        }
-        val keys = arrayOf("semaine-prudence","semaine-spike","semaine-obadiah","semaine-poppy","cori","amy","lessac","android")
+        val saved = prefs.getString("local_voice_key", "kokoro-0") ?: "kokoro-0"
+        val keys = arrayOf(
+            "kokoro-0","kokoro-1","kokoro-2","kokoro-3","kokoro-4",
+            "kokoro-5","kokoro-6","kokoro-7","kokoro-8","kokoro-9","kokoro-10",
+            "lessac","amy","cori","android"
+        )
         val labels = arrayOf(
-            "Offline • Prudence",
-            "Offline • Spike",
-            "Offline • Obadiah",
-            "Offline • Poppy",
-            "Offline • Cori",
-            "Offline • Amy",
-            "Offline • Lessac",
+            "Natural • Kokoro • af",
+            "Natural • Kokoro • Bella",
+            "Natural • Kokoro • Nicole",
+            "Natural • Kokoro • Sarah",
+            "Natural • Kokoro • Sky",
+            "Natural • Kokoro • Adam",
+            "Natural • Kokoro • Michael",
+            "Natural • Kokoro • Emma",
+            "Natural • Kokoro • Isabella",
+            "Natural • Kokoro • George",
+            "Natural • Kokoro • Lewis",
+            "Fast • Piper • Lessac",
+            "Fast • Piper • Amy",
+            "Fast • Piper • Cori",
             "Android system voices…"
         )
         val current = keys.indexOf(saved).takeIf { it >= 0 } ?: 0
         AlertDialog.Builder(this).setTitle("RedUI • Voice Choices")
             .setSingleChoiceItems(labels,current){d,which->
-                when (keys[which]) {
-                    "semaine-prudence" -> { localSpeakerId=0; selectLocalVoice("semaine-prudence","Offline • Prudence") }
-                    "semaine-spike" -> { localSpeakerId=1; selectLocalVoice("semaine-spike","Offline • Spike") }
-                    "semaine-obadiah" -> { localSpeakerId=2; selectLocalVoice("semaine-obadiah","Offline • Obadiah") }
-                    "semaine-poppy" -> { localSpeakerId=3; selectLocalVoice("semaine-poppy","Offline • Poppy") }
-                    "cori" -> { localSpeakerId=0; selectLocalVoice("cori","Offline • Cori") }
-                    "amy" -> { localSpeakerId=0; selectLocalVoice("amy","Offline • Amy") }
-                    "lessac" -> { localSpeakerId=0; selectLocalVoice("lessac","Offline • Lessac") }
+                when (val key = keys[which]) {
                     "android" -> ensureAndroidTts {
                         val voices = if (ttsReady) tts.voices.filter { it.locale.language == Locale.getDefault().language }.sortedBy { it.name } else emptyList()
                         if (voices.isNotEmpty()) showAndroidVoiceChoices(voices)
                         else Toast.makeText(this, "No Android system voices are installed.", Toast.LENGTH_LONG).show()
                     }
+                    else -> selectLocalVoice(key, labels[which])
                 }
                 d.dismiss()
             }.setNegativeButton("CLOSE",null).show()
