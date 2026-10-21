@@ -1,6 +1,7 @@
 package com.giggleloot.redui
 
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -83,8 +84,8 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         }
     }
 
-    private fun build() {
-        val root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(9, 9, 9)) }
+    private fun panel(fill: Int = Color.rgb(18,18,18), stroke: Int = Color.rgb(45,45,45), radius: Float = 22f): GradientDrawable = GradientDrawable().apply { setColor(fill); setStroke(1, stroke); cornerRadius = radius }\n\n    private fun accentButton(label: String, onClick: () -> Unit): Button = Button(this).apply {\n        text = label\n        isAllCaps = false\n        setTextColor(Color.WHITE)\n        background = panel(Color.rgb(28,28,28), Color.rgb(70,25,28), 18f)\n        setOnClickListener { onClick() }\n    }\n\n    private fun build() {
+        val root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(5, 5, 6)) }
         wallpaper = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             alpha = 0.22f
@@ -94,11 +95,11 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16, 16, 16, 8)
+            setPadding(18, 18, 18, 12)
             setBackgroundColor(Color.TRANSPARENT)
         }
 
-        val titleRow = LinearLayout(this)
+        val titleRow = LinearLayout(this).apply {\n            setPadding(4, 4, 4, 10)\n        }
         val title = TextView(this).apply {
             text = "RedUI"
             textSize = 28f
@@ -116,7 +117,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
             setTextColor(Color.LTGRAY)
         })
 
-        val row = LinearLayout(this)
+        val row = LinearLayout(this).apply {\n            background = panel()\n            setPadding(10, 8, 10, 8)\n        }
         spinner = Spinner(this)
         row.addView(spinner, LinearLayout.LayoutParams(0, 60, 1f))
         row.addView(Button(this).apply {
@@ -132,13 +133,13 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         })
         content.addView(row)
 
-        status = TextView(this).apply {
+        status = TextView(this).apply {\n            background = panel(Color.rgb(12,12,13), Color.rgb(40,40,40), 16f)\n            textSize = 12f
             setTextColor(Color.LTGRAY)
             setPadding(4, 10, 4, 10)
         }
         content.addView(status)
 
-        rv = RecyclerView(this).apply {
+        rv = RecyclerView(this).apply {\n            clipToPadding = false\n            setPadding(0, 10, 0, 10)
             layoutManager = LinearLayoutManager(this@MainActivity)
             setBackgroundColor(Color.TRANSPARENT)
         }
@@ -146,15 +147,15 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         rv.adapter = adapter
         content.addView(rv, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        val bottom = LinearLayout(this)
+        val bottom = LinearLayout(this).apply {\n            background = panel(Color.rgb(16,16,17), Color.rgb(48,48,48), 24f)\n            setPadding(10, 6, 6, 6)\n        }
         input = EditText(this).apply {
-            hint = "Message RedAI…"
+            hint = "Talk to RedAI…"\n            textSize = 16f\n            background = null
             setTextColor(Color.WHITE)
             setHintTextColor(Color.GRAY)
             setSingleLine(false)
         }
         bottom.addView(input, LinearLayout.LayoutParams(0, 70, 1f))
-        bottom.addView(Button(this).apply { text = "SEND"; setOnClickListener { send() } })
+        bottom.addView(accentButton("Send") { send() })
         content.addView(bottom)
 
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
