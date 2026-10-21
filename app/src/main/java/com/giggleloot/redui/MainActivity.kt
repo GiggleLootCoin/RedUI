@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var ttsReady = false
     private var selectedVoiceName = ""
     private var localTts: OfflineTts? = null
+    private var localVoiceKey = "semaine-prudence"
     private var localSpeakerId = 0
     private var localTtsSpeed = 1.0f
     private var localPlayer: MediaPlayer? = null
