@@ -31,6 +31,11 @@ jobs:
         with:
           gradle-version: "8.10"
 
+      - name: Install preset lobby background
+        run: |
+          mkdir -p app/src/main/res/drawable-nodpi
+          cp lobby-hero.jpg app/src/main/res/drawable-nodpi/lobby_hero.jpg
+
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
