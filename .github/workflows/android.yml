@@ -34,11 +34,19 @@ jobs:
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
+      - name: Locate built APK
+        run: |
+          echo "APK outputs:"
+          find app/build/outputs -type f -name "*.apk" -print
+          echo "All release outputs:"
+          find app/build/outputs -maxdepth 5 -type f -print
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
         with:
           name: RedUI-release
-          path: app/build/outputs/apk/release/app-release.apk
+          path: app/build/outputs/**/*.apk
+          if-no-files-found: error
           retention-days: 90
 
       - name: Publish GitHub Release
@@ -46,5 +54,5 @@ jobs:
         with:
           tag_name: v${{ github.run_number }}
           name: RedUI v${{ github.run_number }}
-          files: app/build/outputs/apk/release/app-release.apk
+          files: app/build/outputs/**/*.apk
           generate_release_notes: true
