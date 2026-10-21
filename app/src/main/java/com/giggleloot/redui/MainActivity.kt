@@ -97,26 +97,24 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-
-        // Render the UI first. Optional voice/AI engines must never be allowed
-        // to block or crash the first screen on lower-end Android devices.
+        // Critical startup path: only construct the visual shell here.
+        // Everything that can fail, allocate heavily, or touch disk/network is deferred.
         try {
             store = ModelStore(this)
             buildUi()
-            applyWallpaper()
-            refresh()
         } catch (e: Throwable) {
             showStartupError(e)
             return
         }
 
-        // Start optional services only after the first screen is visible.
-        try {
-            tts = TextToSpeech(this, this)
-        } catch (_: Throwable) {
-            ttsReady = false
+        window.decorView.post {
+            try { applyWallpaper() } catch (_: Throwable) {}
+            try { refresh() } catch (_: Throwable) { status.text = "LOCAL • ready" }
+
+            // Optional services never get to block first-frame rendering.
+            try { tts = TextToSpeech(this, this) } catch (_: Throwable) { ttsReady = false }
+            try { initLocalVoiceEngine() } catch (_: Throwable) {}
         }
-        initLocalVoiceEngine()
     }
 
     private fun showStartupError(e: Throwable) {
@@ -127,18 +125,10 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
             setPadding(dp(24), dp(24), dp(24), dp(24))
             setBackgroundColor(Color.rgb(4, 4, 5))
         }
-        view.addView(tv("RedUI", 32f, Color.WHITE).apply {
-            typeface = Typeface.DEFAULT_BOLD
-        })
-        view.addView(tv("The main screen could not be created.", 16f, Color.LTGRAY).apply {
-            setPadding(0, dp(12), 0, dp(8))
-        })
-        view.addView(tv(message, 12f, Color.rgb(235, 80, 88)).apply {
-            setPadding(0, 0, 0, dp(18))
-        })
-        view.addView(button("RESTART REDUI", true) {
-            recreate()
-        })
+        view.addView(tv("RedUI", 32f, Color.WHITE).apply { typeface = Typeface.DEFAULT_BOLD })
+        view.addView(tv("The main screen could not be created.", 16f, Color.LTGRAY).apply { setPadding(0, dp(12), 0, dp(8)) })
+        view.addView(tv(message, 12f, Color.rgb(235, 80, 88)).apply { setPadding(0, 0, 0, dp(18)) })
+        view.addView(button("RESTART REDUI", true) { recreate() })
         setContentView(view)
     }
 
@@ -186,13 +176,10 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     private fun buildUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(4,4,5)) }
-        wallpaper = ImageView(this).apply { scaleType=ImageView.ScaleType.CENTER_CROP; alpha=.16f; visibility=View.VISIBLE; setImageResource(R.drawable.lobby_hero) }
+        wallpaper = ImageView(this).apply { scaleType=ImageView.ScaleType.CENTER_CROP; alpha=.16f; visibility=View.VISIBLE }
         root.addView(wallpaper, FrameLayout.LayoutParams(-1,-1))
 
-        val content = LinearLayout(this).apply {
-            orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(12),dp(16),dp(10))
-        }
-
+        val content = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(12),dp(16),dp(10)) }
         val header = LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(dp(2),dp(3),dp(2),dp(8)) }
         val brand = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         brand.addView(TextView(this).apply {
@@ -230,7 +217,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         },LinearLayout.LayoutParams(-1,dp(44)).apply{topMargin=dp(4)})
         content.addView(modelCard,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)})
 
-        status=tv("LOCAL • ready",11f,Color.rgb(190,190,195)).apply{background=panel(Color.rgb(10,10,11),Color.rgb(38,38,42),14);setPadding(dp(12),dp(8),dp(12),dp(8))}
+        status=tv("LOCAL • starting…",11f,Color.rgb(190,190,195)).apply{background=panel(Color.rgb(10,10,11),Color.rgb(38,38,42),14);setPadding(dp(12),dp(8),dp(12),dp(8))}
         content.addView(status,LinearLayout.LayoutParams(-1,dp(40)).apply{bottomMargin=dp(5)})
 
         rv=RecyclerView(this).apply{clipToPadding=false;setPadding(0,dp(4),0,dp(5));layoutManager=LinearLayoutManager(this@MainActivity);setBackgroundColor(Color.TRANSPARENT)}
@@ -262,9 +249,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
                             tokens = "tts/vits-piper-en_GB-semaine-medium-int8/tokens.txt",
                             dataDir = "tts/vits-piper-en_GB-semaine-medium-int8/espeak-ng-data"
                         ),
-                        numThreads = 2,
-                        debug = false,
-                        provider = "cpu"
+                        numThreads = 2, debug = false, provider = "cpu"
                     ),
                     maxNumSentences = 1
                 )
@@ -276,8 +261,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     private fun stopLocalSpeech() {
         try { localPlayer?.stop() } catch (_: Throwable) {}
-        localPlayer?.release()
-        localPlayer = null
+        localPlayer?.release(); localPlayer = null
     }
 
     private fun speakWithLocalVoice(text: String) {
@@ -291,23 +275,18 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
                 audio.save(wav.absolutePath)
                 withContext(Dispatchers.Main) {
                     if (!handsFree && !speakReplies) return@withContext
-                    val p = MediaPlayer()
-                    localPlayer = p
+                    val p = MediaPlayer(); localPlayer = p
                     p.setDataSource(wav.absolutePath)
                     p.setOnCompletionListener { localPlayer?.release(); localPlayer=null; wav.delete(); resumeListening() }
                     p.setOnErrorListener { _,_,_ -> localPlayer?.release(); localPlayer=null; wav.delete(); speakWithAndroidTts(text); true }
-                    p.prepare()
-                    p.start()
+                    p.prepare(); p.start()
                 }
-            } catch (_: Throwable) {
-                withContext(Dispatchers.Main) { speakWithAndroidTts(text) }
-            }
+            } catch (_: Throwable) { withContext(Dispatchers.Main) { speakWithAndroidTts(text) } }
         }
     }
 
     private fun createSpeechRecognizer() {
-        speech?.destroy()
-        speech = null
+        speech?.destroy(); speech = null
         if (SpeechRecognizer.isRecognitionAvailable(this)) {
             speech = SpeechRecognizer.createSpeechRecognizer(this)
             speech?.setRecognitionListener(recognitionListener)
@@ -316,19 +295,13 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     private fun toggleHandsFree() {
         if (handsFree) {
-            handsFree=false; speech?.stopListening(); tts.stop()
+            handsFree=false; speech?.stopListening(); if(::tts.isInitialized) tts.stop()
             voiceState.text="HANDS-FREE OFF"; status.text="LOCAL • ready"; return
         }
         if (ContextCompat.checkSelfPermission(this,Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.RECORD_AUDIO),9001); return
         }
-        if (speech==null) {
-            try {
-                if (SpeechRecognizer.isRecognitionAvailable(this)) {
-                    createSpeechRecognizer()
-                }
-            } catch (_: Throwable) {}
-        }
+        if (speech==null) try { if (SpeechRecognizer.isRecognitionAvailable(this)) createSpeechRecognizer() } catch (_: Throwable) {}
         if (speech==null) { Toast.makeText(this,"Speech recognition is not available on this phone",Toast.LENGTH_LONG).show(); return }
         if (model==null) { status.text="LOCAL • import RedAI.gguf first"; return }
         handsFree=true; speakReplies=true; startListening()
@@ -336,9 +309,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,results:IntArray) {
         super.onRequestPermissionsResult(requestCode,permissions,results)
-        if(requestCode==9001 && results.firstOrNull()==PackageManager.PERMISSION_GRANTED && model!=null) {
-            handsFree=true; speakReplies=true; startListening()
-        }
+        if(requestCode==9001 && results.firstOrNull()==PackageManager.PERMISSION_GRANTED && model!=null) { handsFree=true; speakReplies=true; startListening() }
     }
 
     private fun startListening() {
@@ -347,7 +318,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         handler.postDelayed({
             if(!handsFree || generating)return@postDelayed
             try {
-                tts.stop()
+                if(::tts.isInitialized) tts.stop()
                 val i=Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE,Locale.getDefault())
@@ -365,7 +336,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     private val recognitionListener=object:RecognitionListener {
         override fun onReadyForSpeech(p:Bundle?){if(handsFree)voiceState.text="LISTENING • go ahead"}
-        override fun onBeginningOfSpeech(){if(handsFree){tts.stop();voiceState.text="LISTENING • hearing you"}}
+        override fun onBeginningOfSpeech(){if(handsFree){if(::tts.isInitialized)tts.stop();voiceState.text="LISTENING • hearing you"}}
         override fun onRmsChanged(v:Float){}
         override fun onBufferReceived(b:ByteArray?){}
         override fun onEndOfSpeech(){if(handsFree)voiceState.text="THINKING • sending"}
@@ -374,10 +345,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
             val text=r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim().orEmpty()
             if(handsFree && text.isNotBlank()){input.setText(text);send(true)} else if(handsFree)startListening()
         }
-        override fun onPartialResults(r:Bundle?){
-            val text=r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-            if(handsFree && text.isNotBlank())input.setText(text)
-        }
+        override fun onPartialResults(r:Bundle?){val text=r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty();if(handsFree&&text.isNotBlank())input.setText(text)}
         override fun onEvent(t:Int,p:Bundle?){}
     }
 
@@ -411,37 +379,19 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     private fun buildPrompt(userPrompt:String):String {
         val sb=StringBuilder()
         sb.append("<|im_start|>system\n").append(redAiSystemPrompt).append("\n<|im_end|>\n")
-        for(m in msgs.dropLast(1).takeLast(8)){
-            if(m.text.isBlank())continue
-            sb.append("<|im_start|>").append(if(m.role=="user")"user" else "assistant").append("\n")
-                .append(m.text).append("\n<|im_end|>\n")
-        }
+        for(m in msgs.dropLast(1).takeLast(8)){if(m.text.isBlank())continue;sb.append("<|im_start|>").append(if(m.role=="user")"user" else "assistant").append("\n").append(m.text).append("\n<|im_end|>\n")}
         sb.append("<|im_start|>user\n").append(userPrompt).append("\n<|im_end|>\n<|im_start|>assistant\n")
         return sb.toString()
     }
 
     private fun cleanForSpeech(s:String)=s.replace(Regex("<think>[\\s\\S]*?</think>"),"").replace(Regex("<\\|[^>]+\\|>"),"").trim()
-    private fun speak(s:String){
-        if(s.isBlank()){if(handsFree)startListening();return}
-        stopLocalSpeech()
-        if(localTts!=null){speakWithLocalVoice(s);return}
-        speakWithAndroidTts(s)
-    }
-    private fun speakWithAndroidTts(s:String){
-        if(!ttsReady){if(handsFree)startListening();return}
-        tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"redai-"+System.currentTimeMillis())
-    }
+    private fun speak(s:String){if(s.isBlank()){if(handsFree)startListening();return};stopLocalSpeech();if(localTts!=null)speakWithLocalVoice(s) else speakWithAndroidTts(s)}
+    private fun speakWithAndroidTts(s:String){if(!ttsReady){if(handsFree)startListening();return};tts.speak(s,TextToSpeech.QUEUE_FLUSH,null,"redai-"+System.currentTimeMillis())}
     private fun resumeListening(){if(handsFree&&!generating)handler.postDelayed({startListening()},450)}
 
-    private fun deleteSelectedModel() {
-        val f = model ?: return
-        AlertDialog.Builder(this).setTitle("Delete model?")
-            .setMessage("Remove " + f.name + " from RedUI? The original file outside RedUI is not affected.")
-            .setNegativeButton("CANCEL", null)
-            .setPositiveButton("DELETE") { _, _ -> f.delete(); model=null; refresh() }.show()
-    }
+    private fun deleteSelectedModel(){val f=model?:return;AlertDialog.Builder(this).setTitle("Delete model?").setMessage("Remove "+f.name+" from RedUI? The original file outside RedUI is not affected.").setNegativeButton("CANCEL",null).setPositiveButton("DELETE"){_,_->f.delete();model=null;refresh()}.show()}
 
-    private fun showSettings() {
+    private fun showSettings(){
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(22),dp(4),dp(22),dp(4))}
         box.addView(tv("REDUI SETTINGS",11f,Color.rgb(235,48,58)).apply{typeface=Typeface.DEFAULT_BOLD;letterSpacing=.12f})
         box.addView(button("PERSONALIZE"){showPersonalize()})
@@ -450,91 +400,59 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         box.addView(button("TALK LIVE"){toggleHandsFree()})
         box.addView(button("BEST PERFORMANCE"){prefs.edit().putBoolean("best_performance",true).apply();Toast.makeText(this,"Galaxy A12 performance preset saved.",Toast.LENGTH_SHORT).show()})
         box.addView(tv("RedAI • Qwen3.5-0.8B + Red’s Ways Of Thinking • Q4_K_M",11f,Color.LTGRAY).apply{setPadding(0,dp(10),0,dp(6))})
-        box.addView(tv("Created by Little Red Big Smile — Red",12f,Color.WHITE).apply{
-            setPadding(0,dp(8),0,dp(4))
-            setOnClickListener{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.youtube.com/@Little-Red-Big-Smile")))}
-        })
+        box.addView(tv("Created by Little Red Big Smile — Red",12f,Color.WHITE).apply{setPadding(0,dp(8),0,dp(4));setOnClickListener{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.youtube.com/@Little-Red-Big-Smile")))}})
         box.addView(tv("YouTube • Little Red Big Smile",11f,Color.rgb(235,48,58)))
         AlertDialog.Builder(this).setTitle("RedUI • Settings").setView(box).setPositiveButton("DONE",null).show()
     }
 
-    private fun showVoiceChoices() {
-        localSpeakerId = prefs.getInt("local_speaker", 0).coerceIn(0,3)
-        val labels = arrayOf("Offline British Voice 1","Offline British Voice 2","Offline British Voice 3","Offline British Voice 4","Android system voices…")
-        AlertDialog.Builder(this).setTitle("RedUI • Voice Choices")
-            .setSingleChoiceItems(labels, localSpeakerId) { d, which ->
-                if(which < 4) {
-                    localSpeakerId = which
-                    prefs.edit().putInt("local_speaker", which).putBoolean("local_voice", true).apply()
-                    Toast.makeText(this, "Offline voice " + (which + 1) + " selected", Toast.LENGTH_SHORT).show()
-                } else {
-                    val voices=if(ttsReady) tts.voices.filter{it.locale.language==Locale.getDefault().language}.sortedBy{it.name} else emptyList()
-                    if(voices.isNotEmpty()) showAndroidVoiceChoices(voices) else Toast.makeText(this, "No Android system voices are installed.", Toast.LENGTH_LONG).show()
-                }
-                d.dismiss()
-            }.setNegativeButton("CLOSE",null).show()
-    }
-
-    private fun showAndroidVoiceChoices(voices: List<android.speech.tts.Voice>) {
-        val labels=voices.map{it.name + if(it.isNetworkConnectionRequired) " • online" else " • offline"}.toTypedArray()
-        val current=voices.indexOfFirst{it.name==selectedVoiceName}.coerceAtLeast(0)
-        AlertDialog.Builder(this).setTitle("Android System Voices").setSingleChoiceItems(labels,current){d,which->
-            val v=voices[which]
-            tts.voice=v; selectedVoiceName=v.name
-            prefs.edit().putString("tts_voice",v.name).putBoolean("local_voice",false).apply()
+    private fun showVoiceChoices(){
+        localSpeakerId=prefs.getInt("local_speaker",0).coerceIn(0,3)
+        val labels=arrayOf("Offline British Voice 1","Offline British Voice 2","Offline British Voice 3","Offline British Voice 4","Android system voices…")
+        AlertDialog.Builder(this).setTitle("RedUI • Voice Choices").setSingleChoiceItems(labels,localSpeakerId){d,which->
+            if(which<4){localSpeakerId=which;prefs.edit().putInt("local_speaker",which).putBoolean("local_voice",true).apply();Toast.makeText(this,"Offline voice "+(which+1)+" selected",Toast.LENGTH_SHORT).show()}
+            else {val voices=if(ttsReady)tts.voices.filter{it.locale.language==Locale.getDefault().language}.sortedBy{it.name}else emptyList();if(voices.isNotEmpty())showAndroidVoiceChoices(voices)else Toast.makeText(this,"No Android system voices are installed.",Toast.LENGTH_LONG).show()}
             d.dismiss()
-        }.setNeutralButton("GET MORE VOICES"){_,_->startActivity(Intent("com.android.settings.TTS_SETTINGS"))}
-         .setNegativeButton("CLOSE",null).show()
+        }.setNegativeButton("CLOSE",null).show()
     }
 
-    private fun showWebSearch() {
+    private fun showAndroidVoiceChoices(voices:List<android.speech.tts.Voice>){
+        val labels=voices.map{it.name+if(it.isNetworkConnectionRequired)" • online" else " • offline"}.toTypedArray()
+        val current=voices.indexOfFirst{it.name==selectedVoiceName}.coerceAtLeast(0)
+        AlertDialog.Builder(this).setTitle("Android System Voices").setSingleChoiceItems(labels,current){d,which->val v=voices[which];tts.voice=v;selectedVoiceName=v.name;prefs.edit().putString("tts_voice",v.name).putBoolean("local_voice",false).apply();d.dismiss()}.setNeutralButton("GET MORE VOICES"){_,_->startActivity(Intent("com.android.settings.TTS_SETTINGS"))}.setNegativeButton("CLOSE",null).show()
+    }
+
+    private fun showWebSearch(){
         val q=EditText(this).apply{hint="Search the web…";setTextColor(Color.WHITE);setHintTextColor(Color.GRAY);textSize=16f;setSingleLine(true)}
-        AlertDialog.Builder(this).setTitle("RedUI • Web Search").setView(q).setNegativeButton("CLOSE",null)
-            .setPositiveButton("SEARCH"){_,_->runWebSearch(q.text.toString().trim())}.show()
+        AlertDialog.Builder(this).setTitle("RedUI • Web Search").setView(q).setNegativeButton("CLOSE",null).setPositiveButton("SEARCH"){_,_->runWebSearch(q.text.toString().trim())}.show()
     }
 
-    private fun runWebSearch(query:String) {
+    private fun runWebSearch(query:String){
         if(query.isBlank())return
         status.text="WEB • searching…"
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
+        lifecycleScope.launch(Dispatchers.IO){
+            try{
                 val encoded=java.net.URLEncoder.encode(query,"UTF-8")
                 val conn=java.net.URL("https://html.duckduckgo.com/html/?q="+encoded).openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout=8000; conn.readTimeout=10000; conn.setRequestProperty("User-Agent","Mozilla/5.0 RedUI")
-                val html=conn.inputStream.bufferedReader().use{it.readText()}; conn.disconnect()
+                conn.connectTimeout=8000;conn.readTimeout=10000;conn.setRequestProperty("User-Agent","Mozilla/5.0 RedUI")
+                val html=conn.inputStream.bufferedReader().use{it.readText()};conn.disconnect()
                 val text=android.text.Html.fromHtml(html.replace(Regex("(?is)<script.*?</script>"),"").replace(Regex("(?is)<style.*?</style>"),"").replace(Regex("(?is)<[^>]+>")," ")).toString().replace(Regex("\\s+")," ").trim()
-                withContext(Dispatchers.Main) {
-                    status.text="WEB • results ready"
-                    AlertDialog.Builder(this@MainActivity).setTitle("Web results • "+query).setMessage(if(text.length>9000) text.take(9000)+"…" else text)
-                        .setPositiveButton("OPEN IN BRAVE"){_,_->openWebSearchInBrowser(query)}.setNegativeButton("DONE",null).show()
-                }
-            } catch(_:Throwable) {
-                withContext(Dispatchers.Main) {
-                    status.text="WEB • browser fallback"
-                    AlertDialog.Builder(this@MainActivity).setTitle("Web search").setMessage("The in-app search service did not return results. You can continue the same search in Brave.")
-                        .setPositiveButton("OPEN IN BRAVE"){_,_->openWebSearchInBrowser(query)}.setNegativeButton("CLOSE",null).show()
-                }
-            }
+                withContext(Dispatchers.Main){status.text="WEB • results ready";AlertDialog.Builder(this@MainActivity).setTitle("Web results • "+query).setMessage(if(text.length>9000)text.take(9000)+"…" else text).setPositiveButton("OPEN IN BRAVE"){_,_->openWebSearchInBrowser(query)}.setNegativeButton("DONE",null).show()}
+            }catch(_:Throwable){withContext(Dispatchers.Main){status.text="WEB • browser fallback";AlertDialog.Builder(this@MainActivity).setTitle("Web search").setMessage("The in-app search service did not return results. You can continue the same search in Brave.").setPositiveButton("OPEN IN BRAVE"){_,_->openWebSearchInBrowser(query)}.setNegativeButton("CLOSE",null).show()}}
         }
     }
 
-    private fun openWebSearchInBrowser(query:String) {
-        startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+java.net.URLEncoder.encode(query,"UTF-8"))))
-    }
+    private fun openWebSearchInBrowser(query:String){startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/search?q="+java.net.URLEncoder.encode(query,"UTF-8"))))}
 
-    private fun showPersonalize() {
+    private fun showPersonalize(){
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(26),dp(4),dp(26),dp(4))}
         box.addView(button("SET MY PROFILE PICTURE"){pickUserAvatar.launch(arrayOf("image/*"))})
         box.addView(button("SET REDAI PROFILE PICTURE"){pickAiAvatar.launch(arrayOf("image/*"))})
         box.addView(button("SET CHAT WALLPAPER"){pickWallpaper.launch(arrayOf("image/*"))})
-        lateinit var voiceButton: Button
-        voiceButton = button(if(speakReplies)"VOICE REPLIES: ON" else "VOICE REPLIES: OFF") {
-            speakReplies = !speakReplies
-            voiceButton.text = if(speakReplies) "VOICE REPLIES: ON" else "VOICE REPLIES: OFF"
-        }
+        lateinit var voiceButton:Button
+        voiceButton=button(if(speakReplies)"VOICE REPLIES: ON" else "VOICE REPLIES: OFF"){speakReplies=!speakReplies;voiceButton.text=if(speakReplies)"VOICE REPLIES: ON" else "VOICE REPLIES: OFF"}
         box.addView(voiceButton)
         box.addView(button("TEST REDAI VOICE"){speak("Hello. This is RedAI speaking locally through RedUI.")})
-        box.addView(button("RESET WALLPAPER"){prefs.edit().remove("wallpaper").apply();wallpaper.setImageDrawable(null);wallpaper.visibility=View.GONE})
+        box.addView(button("RESET WALLPAPER"){prefs.edit().remove("wallpaper").apply();applyWallpaper()})
         AlertDialog.Builder(this).setTitle("RedUI • Personalize").setView(box).setPositiveButton("DONE",null).show()
     }
 
@@ -542,33 +460,28 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         uri?:return
         try{contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)}catch(_:Exception){}
         prefs.edit().putString(key,uri.toString()).apply()
-        if(key=="wallpaper")applyWallpaper();adapter.notifyDataSetChanged()
+        if(key=="wallpaper")applyWallpaper()
+        if(::adapter.isInitialized)adapter.notifyDataSetChanged()
     }
+
     private fun applyWallpaper(){
+        if(!::wallpaper.isInitialized)return
         val s=prefs.getString("wallpaper",null)
         try{
-            if(s.isNullOrBlank()){
-                wallpaper.setImageResource(R.drawable.lobby_hero)
-                wallpaper.visibility=View.VISIBLE
-            } else {
-                wallpaper.setImageURI(Uri.parse(s))
-                wallpaper.visibility=View.VISIBLE
-            }
-        }catch(_:Exception){
-            wallpaper.setImageResource(R.drawable.lobby_hero)
+            if(s.isNullOrBlank()){wallpaper.setImageResource(R.drawable.lobby_hero)}
+            else{wallpaper.setImageURI(Uri.parse(s))}
             wallpaper.visibility=View.VISIBLE
-        }
+        }catch(_:Exception){try{wallpaper.setImageResource(R.drawable.lobby_hero);wallpaper.visibility=View.VISIBLE}catch(_:Throwable){wallpaper.visibility=View.GONE}}
     }
 
     private fun refresh(selected:String?=null){
+        if(!::store.isInitialized||!::spinner.isInitialized)return
         val fs=store.all()
         val names=if(fs.isEmpty())listOf("No GGUF imported") else fs.map{it.name}
         spinner.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,names)
         spinner.onItemSelectedListener=object:AdapterView.OnItemSelectedListener{
             override fun onNothingSelected(p:AdapterView<*>?){}
-            override fun onItemSelected(p:AdapterView<*>?,v:View?,i:Int,id:Long){
-                model=fs.getOrNull(i);status.text=if(model==null)"LOCAL • import RedAI.gguf" else "LOCAL • "+model!!.name
-            }
+            override fun onItemSelected(p:AdapterView<*>?,v:View?,i:Int,id:Long){model=fs.getOrNull(i);status.text=if(model==null)"LOCAL • import RedAI.gguf" else "LOCAL • "+model!!.name}
         }
         val preferred=selected?:fs.firstOrNull{it.name.equals("RedAI.gguf",true)}?.name
         preferred?.let{x->val i=names.indexOf(x);if(i>=0){spinner.setSelection(i);model=fs.getOrNull(i)}}
