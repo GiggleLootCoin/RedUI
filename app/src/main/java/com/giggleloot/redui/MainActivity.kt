@@ -138,7 +138,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     private fun buildUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(4,4,5)) }
-        wallpaper = ImageView(this).apply { scaleType=ImageView.ScaleType.CENTER_CROP; alpha=.16f; visibility=View.GONE }
+        wallpaper = ImageView(this).apply { scaleType=ImageView.ScaleType.CENTER_CROP; alpha=.16f; visibility=View.VISIBLE; setImageResource(R.drawable.lobby_hero) }
         root.addView(wallpaper, FrameLayout.LayoutParams(-1,-1))
 
         val content = LinearLayout(this).apply {
@@ -378,8 +378,19 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
         if(key=="wallpaper")applyWallpaper();adapter.notifyDataSetChanged()
     }
     private fun applyWallpaper(){
-        val s=prefs.getString("wallpaper",null)?:return
-        try{wallpaper.setImageURI(Uri.parse(s));wallpaper.visibility=View.VISIBLE}catch(_:Exception){wallpaper.visibility=View.GONE}
+        val s=prefs.getString("wallpaper",null)
+        try{
+            if(s.isNullOrBlank()){
+                wallpaper.setImageResource(R.drawable.lobby_hero)
+                wallpaper.visibility=View.VISIBLE
+            } else {
+                wallpaper.setImageURI(Uri.parse(s))
+                wallpaper.visibility=View.VISIBLE
+            }
+        }catch(_:Exception){
+            wallpaper.setImageResource(R.drawable.lobby_hero)
+            wallpaper.visibility=View.VISIBLE
+        }
     }
 
     private fun refresh(selected:String?=null){
