@@ -394,39 +394,83 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
     private fun initLocalVoiceEngine() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Verify the APK actually contains the model before constructing sherpa.
-                val modelAsset = "tts/vits-piper-en_GB-semaine-medium-int8/en_GB-semaine-medium-int8.onnx"
-                val tokensAsset = "tts/vits-piper-en_GB-semaine-medium-int8/tokens.txt"
-                val dataAsset = "tts/vits-piper-en_GB-semaine-medium-int8/espeak-ng-data"
-                assets.open(modelAsset).close()
-                assets.open(tokensAsset).close()
-                assets.list(dataAsset)?.takeIf { it.isNotEmpty() }
-                    ?: throw IllegalStateException("Bundled voice phonemizer data is missing")
-
-                val config = OfflineTtsConfig(
-                    model = OfflineTtsModelConfig(
-                        vits = OfflineTtsVitsModelConfig(
-                            model = "tts/vits-piper-en_GB-semaine-medium-int8/en_GB-semaine-medium-int8.onnx",
-                            tokens = "tts/vits-piper-en_GB-semaine-medium-int8/tokens.txt",
-                            dataDir = "tts/vits-piper-en_GB-semaine-medium-int8/espeak-ng-data"
-                        ),
-                        numThreads = 2, debug = false, provider = "cpu"
-                    ),
-                    maxNumSentences = 1
-                )
-                val engine = OfflineTts(assets, config)
+                val savedKey = prefs.getString("local_voice_key", "semaine-prudence") ?: "semaine-prudence"
+                val speaker = when (savedKey) {
+                    "semaine-spike" -> 1
+                    "semaine-obadiah" -> 2
+                    "semaine-poppy" -> 3
+                    else -> 0
+                }
+                localVoiceKey = savedKey
+                localSpeakerId = speaker
+                val engine = buildLocalVoiceEngine(savedKey)
                 withContext(Dispatchers.Main) {
                     localTts = engine
-                    if (!isFinishing && !isDestroyed) {
-                        status.text = "LOCAL • ready • offline voices installed"
-                    }
+                    status.text = "LOCAL • ready • offline voices installed"
                 }
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {
                     localTts = null
-                    if (!isFinishing && !isDestroyed) {
-                        status.text = "LOCAL • system voice fallback • " + (e.message ?: "offline voice unavailable")
-                    }
+                    status.text = "LOCAL • system voice fallback • " + (e.message ?: "offline voice unavailable")
+                }
+            }
+        }
+    }
+
+    private fun buildLocalVoiceEngine(key: String): OfflineTts {
+        val dir = when (key) {
+            "cori" -> "tts/vits-piper-en_GB-cori-medium"
+            "amy" -> "tts/vits-piper-en_US-amy-low"
+            "lessac" -> "tts/vits-piper-en_US-lessac-medium"
+            else -> "tts/vits-piper-en_GB-semaine-medium-int8"
+        }
+        val model = when (key) {
+            "cori" -> "en_GB-cori-medium.onnx"
+            "amy" -> "en_US-amy-low.onnx"
+            "lessac" -> "en_US-lessac-medium.onnx"
+            else -> "en_GB-semaine-medium-int8.onnx"
+        }
+        val modelAsset = "$dir/$model"
+        val tokensAsset = "$dir/tokens.txt"
+        val dataAsset = "$dir/espeak-ng-data"
+        assets.open(modelAsset).close()
+        assets.open(tokensAsset).close()
+        assets.list(dataAsset)?.takeIf { it.isNotEmpty() }
+            ?: throw IllegalStateException("Voice assets are missing for $key")
+        return OfflineTts(
+            assets,
+            OfflineTtsConfig(
+                model = OfflineTtsModelConfig(
+                    vits = OfflineTtsVitsModelConfig(
+                        model = modelAsset,
+                        tokens = tokensAsset,
+                        dataDir = dataAsset
+                    ),
+                    numThreads = 2,
+                    debug = false,
+                    provider = "cpu"
+                ),
+                maxNumSentences = 1
+            )
+        )
+    }
+
+    private fun selectLocalVoice(key: String, label: String) {
+        localVoiceKey = key
+        prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", true).apply()
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val engine = buildLocalVoiceEngine(key)
+                withContext(Dispatchers.Main) {
+                    localTts?.release()
+                    localTts = engine
+                    status.text = "LOCAL • $label • ready"
+                    Toast.makeText(this@MainActivity, "$label selected", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Throwable) {
+                withContext(Dispatchers.Main) {
+                    status.text = "LOCAL • voice unavailable • " + (e.message ?: key)
+                    Toast.makeText(this@MainActivity, "Could not load $label", Toast.LENGTH_LONG).show()
                 }
             }
         }
