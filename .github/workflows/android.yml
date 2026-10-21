@@ -36,6 +36,14 @@ jobs:
           mkdir -p app/src/main/res/drawable-nodpi
           cp lobby-hero.jpg app/src/main/res/drawable-nodpi/lobby_hero.jpg
 
+      - name: Add offline local voice engine
+        run: |
+          mkdir -p app/libs app/src/main/assets/tts
+          curl -L --fail --retry 3 -o app/libs/sherpa-onnx-1.13.8.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar
+          curl -L --fail --retry 3 -o /tmp/semaine.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_GB-semaine-medium-int8.tar.bz2
+          tar -xjf /tmp/semaine.tar.bz2 -C app/src/main/assets/tts
+          rm /tmp/semaine.tar.bz2
+
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
