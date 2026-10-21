@@ -8,8 +8,20 @@ import android.provider.OpenableColumns
 import android.speech.tts.TextToSpeech
 import android.view.View
 import android.widget.*
+package com.giggleloot.redui
+
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.net.Uri
+import android.os.Bundle
+import android.provider.OpenableColumns
+import android.speech.tts.TextToSpeech
+import android.view.View
+import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
