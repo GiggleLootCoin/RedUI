@@ -382,7 +382,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
             setPadding(0,dp(10),0,0)
         })
 
-        scroll.addView(content,ScrollView.LayoutParams(-1,-2))
+        scroll.addView(content,android.widget.ScrollView.LayoutParams(-1,-2))
         root.addView(scroll,FrameLayout.LayoutParams(-1,-1))
         setContentView(root)
     }
