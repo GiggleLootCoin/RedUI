@@ -1,0 +1,1 @@
+<resources><style name="Theme.RedUI" parent="Theme.MaterialComponents.DayNight.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:colorAccent">#E31B23</item><item name="android:navigationBarColor">#090909</item><item name="android:statusBarColor">#090909</item></style></resources>
