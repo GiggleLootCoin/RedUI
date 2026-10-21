@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.giggleloot.redui"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.giggleloot.redui"
         minSdk = 29
