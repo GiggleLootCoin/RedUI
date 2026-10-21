@@ -298,7 +298,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in RedU
 
     private fun cleanForSpeech(text: String): String {
         return text.replace(Regex("<think>[\\s\\S]*?</think>"), "")
-            .replace(Regex("< ?\|[^>]+\|>"), "")
+            .replace(Regex("<\\|[^>]+\\|>"), "")
             .trim()
     }
 
