@@ -41,29 +41,40 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install "sherpa-onnx==1.13.8"
           mkdir -p /tmp/redui-tts app/src/main/assets/testvoices
-          for MODEL in vits-piper-en_US-lessac-medium vits-piper-en_US-amy-medium vits-piper-en_GB-cori-medium; do
-            curl -L --fail --retry 3 -o "/tmp/$MODEL.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$MODEL.tar.bz2"
-            tar -xjf "/tmp/$MODEL.tar.bz2" -C /tmp/redui-tts
-          done
           python3 - <<'PY'
           import struct
-          import sys
           import wave
+          import urllib.request
+          import tarfile
+          import os
           import sherpa_onnx
 
           voices = [
-              ("lessac", "/tmp/redui-tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx", "/tmp/redui-tts/vits-piper-en_US-lessac-medium/tokens.txt", "/tmp/redui-tts/vits-piper-en_US-lessac-medium/espeak-ng-data"),
-              ("amy", "/tmp/redui-tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx", "/tmp/redui-tts/vits-piper-en_US-amy-medium/tokens.txt", "/tmp/redui-tts/vits-piper-en_US-amy-medium/espeak-ng-data"),
-              ("cori", "/tmp/redui-tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx", "/tmp/redui-tts/vits-piper-en_GB-cori-medium/tokens.txt", "/tmp/redui-tts/vits-piper-en_GB-cori-medium/espeak-ng-data"),
+              ("lessac", "vits-piper-en_US-lessac-medium", "en_US-lessac-medium.onnx"),
+              ("amy", "vits-piper-en_US-amy-medium", "en_US-amy-medium.onnx"),
+              ("cori", "vits-piper-en_GB-cori-medium", "en_GB-cori-medium.onnx"),
+              ("alan", "vits-piper-en_GB-alan-medium", "en_GB-alan-medium.onnx"),
+              ("joe", "vits-piper-en_US-joe-medium", "en_US-joe-medium.onnx"),
+              ("john", "vits-piper-en_US-john-medium", "en_US-john-medium.onnx"),
+              ("kathleen", "vits-piper-en_US-kathleen-low", "en_US-kathleen-low.onnx"),
+              ("glados", "vits-piper-en_US-glados", "en_US-glados.onnx"),
           ]
 
-          for key, model, tokens, data_dir in voices:
+          root = "/tmp/redui-tts"
+          for key, dirname, model_file in voices:
+              archive = f"/tmp/{dirname}.tar.bz2"
+              url = f"https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/{dirname}.tar.bz2"
+              urllib.request.urlretrieve(url, archive)
+              with tarfile.open(archive, "r:bz2") as tf:
+                  tf.extractall(root, filter="data")
+              os.remove(archive)
+              base = os.path.join(root, dirname)
               cfg = sherpa_onnx.OfflineTtsConfig(
                   model=sherpa_onnx.OfflineTtsModelConfig(
                       vits=sherpa_onnx.OfflineTtsVitsModelConfig(
-                          model=model,
-                          tokens=tokens,
-                          data_dir=data_dir,
+                          model=os.path.join(base, model_file),
+                          tokens=os.path.join(base, "tokens.txt"),
+                          data_dir=os.path.join(base, "espeak-ng-data"),
                       ),
                       num_threads=2,
                       debug=False,
@@ -79,9 +90,9 @@ jobs:
                   sid=0,
                   speed=1.0,
               )
-              if len(audio.samples) == 0:
+              if not audio.samples:
                   raise RuntimeError("No audio generated for " + key)
-              out = "app/src/main/assets/testvoices/" + key + ".wav"
+              out = f"app/src/main/assets/testvoices/{key}.wav"
               with wave.open(out, "wb") as wf:
                   wf.setnchannels(1)
                   wf.setsampwidth(2)
@@ -91,11 +102,11 @@ jobs:
                       sample = max(-1.0, min(1.0, float(sample)))
                       frames.extend(struct.pack("<h", int(sample * 32767.0)))
                   wf.writeframes(frames)
-              print("generated", out, audio.sample_rate, len(audio.samples))
+              print("generated", out)
           PY
-          test -s app/src/main/assets/testvoices/lessac.wav
-          test -s app/src/main/assets/testvoices/amy.wav
-          test -s app/src/main/assets/testvoices/cori.wav
+          for voice in lessac amy cori alan joe john kathleen glados; do
+            test -s "app/src/main/assets/testvoices/$voice.wav"
+          done
           ls -lh app/src/main/assets/testvoices
           rm -rf /tmp/redui-tts
 
