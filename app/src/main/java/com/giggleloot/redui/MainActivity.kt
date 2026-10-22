@@ -502,7 +502,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         generating=true;if(handsFree||fromVoice)voiceState.text="THINKING • RedAI is replying"
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                LlamaBridge.updateGenerateParams(.68f,384,.92f,40,1.10f,2048,4,true,true,128,0)
+                LlamaBridge.updateGenerateParams(.70f,256,.80f,20,1.10f,2048,4,true,true,128,0)
                 if (loadedModelPath != f.absolutePath) {
                     withContext(Dispatchers.Main){status.text="LOCAL • loading • "+f.name}
                     if(!LlamaBridge.initGenerateModel(f.absolutePath))throw Exception("Could not load GGUF")
