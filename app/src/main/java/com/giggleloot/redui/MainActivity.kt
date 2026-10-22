@@ -394,8 +394,13 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
     }
 
     private fun initLocalVoiceEngine() {
-        // Keep startup light on low-memory phones. Load the neural voice only when speech is requested.
-        localVoiceKey = prefs.getString("local_voice_key", "lessac") ?: "lessac"
+        // Keep startup light on low-memory phones. Load a fresh neural voice only when speech is requested.
+        var saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
+        if (saved.startsWith("kokoro-") && !kokoroAllowed()) {
+            saved = "lessac"
+            prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", true).apply()
+        }
+        localVoiceKey = saved
         localSpeakerId = speakerIdFor(localVoiceKey)
         localTts = null
         status.text = "LOCAL • ready • offline voice engine available"
@@ -507,29 +512,18 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
 
     private fun selectLocalVoice(key: String, label: String) {
         if (key.startsWith("kokoro-") && !kokoroAllowed()) {
-            Toast.makeText(this, "Kokoro is disabled on this phone to prevent a native memory crash. Piper voices are enabled instead.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "$label requires a higher-memory phone. Stable Piper voices are enabled on this Galaxy A12.", Toast.LENGTH_LONG).show()
             return
         }
+        stopLocalSpeech()
+        localTts?.release()
+        localTts = null
         localVoiceKey = key
         localSpeakerId = speakerIdFor(key)
         prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", true).apply()
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val engine = buildLocalVoiceEngine(key)
-                withContext(Dispatchers.Main) {
-                    localTts?.release()
-                    localTts = engine
-                    status.text = "LOCAL • $label • ready"
-                    Toast.makeText(this@MainActivity, "$label selected • testing voice", Toast.LENGTH_SHORT).show()
-                    speakWithLocalVoice("Hello. I am $label. This is a Red U I voice test.")
-                }
-            } catch (e: Throwable) {
-                withContext(Dispatchers.Main) {
-                    status.text = "LOCAL • $label FAILED • " + (e.message ?: "unknown voice error")
-                    Toast.makeText(this@MainActivity, "$label could not load. RedUI stayed open and did not switch voices silently.", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
+        status.text = "LOCAL • $label • selected"
+        Toast.makeText(this, "$label selected • testing voice", Toast.LENGTH_SHORT).show()
+        speakWithLocalVoice("Hello. I am $label. This is a Red U I voice test.", true)
     }
 
     private fun stopLocalSpeech() {
@@ -537,24 +531,62 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         localPlayer?.release(); localPlayer = null
     }
 
-    private fun speakWithLocalVoice(text: String) {
-        val engine = localTts
-        if (engine == null || text.isBlank()) { speakWithAndroidTts(text); return }
+    private fun speakWithLocalVoice(text: String, forcePlayback: Boolean = false) {
+        if (text.isBlank()) {
+            if (handsFree) resumeListening()
+            return
+        }
+        val key = localVoiceKey
+        val speaker = speakerIdFor(key)
         stopLocalSpeech()
         lifecycleScope.launch(Dispatchers.IO) {
+            var engine: OfflineTts? = null
             try {
-                val audio = engine.generateWithConfig(text, GenerationConfig(sid=localSpeakerId, speed=localTtsSpeed, silenceScale=.2f))
-                val wav = File(cacheDir, "redui-voice.wav")
+                // Create and destroy a fresh sherpa TTS instance for every generation.
+                // This avoids the documented Android/ONNX crash seen when reusing
+                // OfflineTts across generations on ARM64 devices.
+                engine = buildLocalVoiceEngine(key)
+                val audio = engine.generateWithConfig(
+                    text,
+                    GenerationConfig(sid=speaker, speed=localTtsSpeed, silenceScale=.2f)
+                )
+                val wav = File(cacheDir, "redui-voice-${System.currentTimeMillis()}.wav")
                 audio.save(wav.absolutePath)
+                engine.release()
+                engine = null
                 withContext(Dispatchers.Main) {
-                    if (!handsFree && !speakReplies) return@withContext
-                    val p = MediaPlayer(); localPlayer = p
+                    if (!forcePlayback && !handsFree && !speakReplies) {
+                        wav.delete()
+                        return@withContext
+                    }
+                    val p = MediaPlayer()
+                    localPlayer = p
                     p.setDataSource(wav.absolutePath)
-                    p.setOnCompletionListener { localPlayer?.release(); localPlayer=null; wav.delete(); resumeListening() }
-                    p.setOnErrorListener { _,_,_ -> localPlayer?.release(); localPlayer=null; wav.delete(); speakWithAndroidTts(text); true }
-                    p.prepare(); p.start()
+                    p.setOnCompletionListener {
+                        localPlayer?.release()
+                        localPlayer = null
+                        wav.delete()
+                        resumeListening()
+                    }
+                    p.setOnErrorListener { _, _, _ ->
+                        localPlayer?.release()
+                        localPlayer = null
+                        wav.delete()
+                        status.text = "LOCAL • voice playback failed"
+                        if (handsFree) resumeListening()
+                        true
+                    }
+                    p.prepare()
+                    p.start()
+                    status.text = "LOCAL • ${localVoiceLabel(key)} • speaking"
                 }
-            } catch (e: Throwable) { withContext(Dispatchers.Main) { status.text = "LOCAL • voice playback failed • " + (e.message ?: "unknown error"); if (handsFree) resumeListening() } }
+            } catch (e: Throwable) {
+                try { engine?.release() } catch (_: Throwable) {}
+                withContext(Dispatchers.Main) {
+                    status.text = "LOCAL • ${localVoiceLabel(key)} FAILED • " + (e.message ?: "voice error")
+                    if (handsFree) resumeListening()
+                }
+            }
         }
     }
 
@@ -821,9 +853,19 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         lateinit var voiceButton:Button
         voiceButton=button(if(speakReplies)"VOICE REPLIES: ON" else "VOICE REPLIES: OFF"){speakReplies=!speakReplies;voiceButton.text=if(speakReplies)"VOICE REPLIES: ON" else "VOICE REPLIES: OFF"}
         box.addView(voiceButton)
-        box.addView(button("TEST REDAI VOICE"){speak("Hello. This is RedAI speaking locally through RedUI.")})
+        box.addView(button("TEST REDAI VOICE"){testSelectedVoice()})
         box.addView(button("RESET WALLPAPER"){prefs.edit().remove("wallpaper").apply();applyWallpaper()})
         AlertDialog.Builder(this).setTitle("RedUI • Personalize").setView(box).setPositiveButton("DONE",null).show()
+    }
+
+    private fun testSelectedVoice() {
+        val key = localVoiceKey
+        if (key.startsWith("kokoro-") && !kokoroAllowed()) {
+            Toast.makeText(this, "That Kokoro voice needs more memory than this Galaxy A12 safely provides. Choose Piper • Lessac, Amy, or Cori.", Toast.LENGTH_LONG).show()
+            return
+        }
+        prefs.edit().putBoolean("local_voice", true).putString("local_voice_key", key).apply()
+        speakWithLocalVoice("Hello. This is RedAI speaking locally through Red U I.", true)
     }
 
     private fun saveImageUri(key:String,uri:Uri?){
