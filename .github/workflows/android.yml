@@ -36,23 +36,16 @@ jobs:
           mkdir -p app/src/main/res/drawable-nodpi
           cp lobby-hero.jpg app/src/main/res/drawable-nodpi/lobby_hero.jpg
 
-      - name: Generate safe offline voice test clips
+      - name: Reuse verified offline voice test clips
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install "sherpa-onnx==1.13.8"
-          mkdir -p /tmp/redui-tts app/src/main/assets/testvoices
-          for MODEL in vits-piper-en_US-lessac-medium vits-piper-en_US-amy-medium vits-piper-en_GB-cori-medium; do
-            curl -L --fail --retry 3 -o "/tmp/$MODEL.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$MODEL.tar.bz2"
-            tar -xjf "/tmp/$MODEL.tar.bz2" -C /tmp/redui-tts
-          done
-          sherpa-onnx-offline-tts --vits-model=/tmp/redui-tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx --vits-tokens=/tmp/redui-tts/vits-piper-en_US-lessac-medium/tokens.txt --vits-data-dir=/tmp/redui-tts/vits-piper-en_US-lessac-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/lessac.wav "Hello. This is the Lessac voice in Red U I."
-          sherpa-onnx-offline-tts --vits-model=/tmp/redui-tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx --vits-tokens=/tmp/redui-tts/vits-piper-en_US-amy-medium/tokens.txt --vits-data-dir=/tmp/redui-tts/vits-piper-en_US-amy-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/amy.wav "Hello. This is the Amy voice in Red U I."
-          sherpa-onnx-offline-tts --vits-model=/tmp/redui-tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx --vits-tokens=/tmp/redui-tts/vits-piper-en_GB-cori-medium/tokens.txt --vits-data-dir=/tmp/redui-tts/vits-piper-en_GB-cori-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/cori.wav "Hello. This is the Cori voice in Red U I."
+          mkdir -p app/src/main/assets/testvoices /tmp/redui-v76
+          curl -L --fail --retry 3 -o /tmp/redui-v76/redui-v76.apk https://github.com/GiggleLootCoin/RedUI/releases/download/v76/app-arm64-v8a-release.apk
+          unzip -j -o /tmp/redui-v76/redui-v76.apk 'assets/testvoices/lessac.wav' 'assets/testvoices/amy.wav' 'assets/testvoices/cori.wav' -d app/src/main/assets/testvoices
           test -s app/src/main/assets/testvoices/lessac.wav
           test -s app/src/main/assets/testvoices/amy.wav
           test -s app/src/main/assets/testvoices/cori.wav
           ls -lh app/src/main/assets/testvoices
-          rm -rf /tmp/redui-tts
+          rm -rf /tmp/redui-v76
 
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
