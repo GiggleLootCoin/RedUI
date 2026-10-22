@@ -514,7 +514,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         val sb=StringBuilder()
         sb.append("<|im_start|>system\n").append(redAiSystemPrompt).append("\n<|im_end|>\n")
         for(m in msgs.dropLast(1).takeLast(8)){if(m.text.isBlank())continue;sb.append("<|im_start|>").append(if(m.role=="user")"user" else "assistant").append("\n").append(m.text).append("\n<|im_end|>\n")}
-        sb.append("<|im_start|>user\n").append(userPrompt).append("\n<|im_end|>\n<|im_start|>assistant\n")
+        sb.append("<|im_start|>user\n").append(userPrompt).append("\n<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n")
         return sb.toString()
     }
 
