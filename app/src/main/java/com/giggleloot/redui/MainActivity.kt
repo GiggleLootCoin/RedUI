@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var localSpeakerId = 0
     private var localPlayer: MediaPlayer? = null
     private var loadedModelPath = ""
+    private var loadedModelPath = ""
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
 
     private val redAiSystemPrompt = """
@@ -525,8 +526,6 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
             if (m.text.isBlank()) continue
             messages.add((if (m.role == "user") "user" else "assistant") to m.text)
         }
-        // Use the chat template embedded in the GGUF. This is the authoritative Qwen3.5
-        // formatting and avoids silent failures from hand-built special-token prompts.
         return LlamaBridge.applyChatTemplate(messages, true)
             ?: run {
                 val sb=StringBuilder()
