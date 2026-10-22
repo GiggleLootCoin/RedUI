@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var localVoiceKey = "lessac"
     private var localSpeakerId = 0
     private var localPlayer: MediaPlayer? = null
+    private var loadedModelPath = ""
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
 
     private val redAiSystemPrompt = """
@@ -136,6 +137,8 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         stopLocalSpeech()
         handler.removeCallbacksAndMessages(null)
         if (::tts.isInitialized) { tts.stop(); tts.shutdown() }
+        try { LlamaBridge.nativeCancelGenerate() } catch (_: Throwable) {}
+        try { LlamaBridge.shutdown() } catch (_: Throwable) {}
         super.onDestroy()
     }
 
@@ -485,7 +488,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
 
     private fun send(fromVoice:Boolean) {
         val prompt=input.text.toString().trim(); val f=model
-        if(prompt.isEmpty())return
+        if(prompt.isEmpty() || generating)return
         if(f==null){status.text="LOCAL • import RedAI.gguf first";return}
         speech?.stopListening(); input.text.clear()
         msgs.add(ChatMessage("user",prompt));adapter.notifyItemInserted(msgs.lastIndex)
@@ -493,8 +496,13 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         generating=true;if(handsFree||fromVoice)voiceState.text="THINKING • RedAI is replying"
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                LlamaBridge.updateGenerateParams(.70f,512,.90f,40,1.10f,2048,4,true,true,128,0)
-                if(!LlamaBridge.initGenerateModel(f.absolutePath))throw Exception("Could not load GGUF")
+                LlamaBridge.updateGenerateParams(.68f,384,.92f,40,1.10f,2048,4,true,true,128,0)
+                if (loadedModelPath != f.absolutePath) {
+                    withContext(Dispatchers.Main){status.text="LOCAL • loading • "+f.name}
+                    if(!LlamaBridge.initGenerateModel(f.absolutePath))throw Exception("Could not load GGUF")
+                    loadedModelPath = f.absolutePath
+                    try { LlamaBridge.initMtp(f.absolutePath, 3) } catch (_: Throwable) {}
+                }
                 withContext(Dispatchers.Main){status.text="LOCAL • generating • "+f.name}
                 LlamaBridge.generateStream(buildPrompt(prompt),object:GenStream{
                     override fun onDelta(t:String){runOnUiThread{msgs[ai]=msgs[ai].copy(text=msgs[ai].text+t);adapter.notifyItemChanged(ai);rv.scrollToPosition(ai)}}
@@ -511,11 +519,24 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
     }
 
     private fun buildPrompt(userPrompt:String):String {
-        val sb=StringBuilder()
-        sb.append("<|im_start|>system\n").append(redAiSystemPrompt).append("\n<|im_end|>\n")
-        for(m in msgs.dropLast(1).takeLast(8)){if(m.text.isBlank())continue;sb.append("<|im_start|>").append(if(m.role=="user")"user" else "assistant").append("\n").append(m.text).append("\n<|im_end|>\n")}
-        sb.append("<|im_start|>user\n").append(userPrompt).append("\n<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n")
-        return sb.toString()
+        val messages = mutableListOf<Pair<String,String>>()
+        messages.add("system" to redAiSystemPrompt)
+        for (m in msgs.dropLast(1).takeLast(8)) {
+            if (m.text.isBlank()) continue
+            messages.add((if (m.role == "user") "user" else "assistant") to m.text)
+        }
+        // Use the chat template embedded in the GGUF. This is the authoritative Qwen3.5
+        // formatting and avoids silent failures from hand-built special-token prompts.
+        return LlamaBridge.applyChatTemplate(messages, true)
+            ?: run {
+                val sb=StringBuilder()
+                sb.append("<|im_start|>system\n").append(redAiSystemPrompt).append("<|im_end|>\n")
+                for ((role, content) in messages.drop(1)) {
+                    sb.append("<|im_start|>").append(role).append("\n").append(content).append("<|im_end|>\n")
+                }
+                sb.append("<|im_start|>assistant\n")
+                sb.toString()
+            }
     }
 
     private fun cleanForSpeech(s:String)=s.replace(Regex("<think>[\\s\\S]*?</think>"),"").replace(Regex("<\\|[^>]+\\|>"),"").trim()
