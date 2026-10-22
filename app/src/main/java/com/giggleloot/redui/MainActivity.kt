@@ -1,6 +1,7 @@
 package com.giggleloot.redui
 
 import android.Manifest
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -76,7 +77,7 @@ Do not invent a task or pretend the user asked for something they did not ask.
 Answer the user's actual message directly.
 Be natural, useful, honest, concise, and technically capable.
 You run locally in RedUI. Do not claim to have internet access, files, tools, sensors, or abilities that are not actually available.
-If asked who you are, say you are RedAI, created by Red, running locally in Red U I. The app name is displayed as RedUI, but when speaking it aloud, pronounce it as Red U I. Never pronounce it as Reduey or any other variation. The creator name is exactly Little Red Big Smile, never Little Red Big Smile.
+If asked who you are, say you are RedAI, created by Red, running locally in Red U I. The app name is displayed as RedUI, but when speaking it aloud, pronounce it as Red U I. Never pronounce it as Reduey or any other variation. The creator name is exactly Little Red Big Smile. Never say Little Red Bigger Smile.
 """.trimIndent()
 
     private val pickModel = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -400,6 +401,15 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         status.text = "LOCAL • ready • offline voice engine available"
     }
 
+    private fun kokoroAllowed(): Boolean {
+        return try {
+            val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+            val mi = ActivityManager.MemoryInfo()
+            am.getMemoryInfo(mi)
+            mi.totalMem >= 6L * 1024L * 1024L * 1024L
+        } catch (_: Throwable) { false }
+    }
+
     private fun speakerIdFor(key: String): Int = when (key) {
         "kokoro-0" -> 0
         "kokoro-1" -> 1
@@ -421,6 +431,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
             "am_adam", "am_michael", "bf_emma", "bf_isabella", "bm_george", "bm_lewis"
         )
         if (key.startsWith("kokoro-")) {
+            if (!kokoroAllowed()) throw IllegalStateException("Kokoro is disabled on this phone to prevent a native memory crash. Use a Piper voice.")
             val sid = key.removePrefix("kokoro-").toIntOrNull() ?: 0
             if (sid !in 0..10) throw IllegalArgumentException("Invalid Kokoro voice")
             val dir = "tts/kokoro-int8-en-v0_19"
@@ -495,6 +506,10 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
     }
 
     private fun selectLocalVoice(key: String, label: String) {
+        if (key.startsWith("kokoro-") && !kokoroAllowed()) {
+            Toast.makeText(this, "Kokoro is disabled on this phone to prevent a native memory crash. Piper voices are enabled instead.", Toast.LENGTH_LONG).show()
+            return
+        }
         localVoiceKey = key
         localSpeakerId = speakerIdFor(key)
         prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", true).apply()
@@ -511,7 +526,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {
                     status.text = "LOCAL • $label FAILED • " + (e.message ?: "unknown voice error")
-                    Toast.makeText(this@MainActivity, "$label failed to load. Android fallback is disabled so the problem is visible.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "$label could not load. RedUI stayed open and did not switch voices silently.", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -720,28 +735,21 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
     }
 
     private fun showVoiceChoices(){
-        val saved = prefs.getString("local_voice_key", "kokoro-0") ?: "kokoro-0"
-        val keys = arrayOf(
+        val kokoro = kokoroAllowed()
+        val saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
+        val keys = if (kokoro) arrayOf(
             "kokoro-0","kokoro-1","kokoro-2","kokoro-3","kokoro-4",
             "kokoro-5","kokoro-6","kokoro-7","kokoro-8","kokoro-9","kokoro-10",
             "lessac","amy","cori","android"
-        )
-        val labels = arrayOf(
-            "Natural • Kokoro • af",
-            "Natural • Kokoro • Bella",
-            "Natural • Kokoro • Nicole",
-            "Natural • Kokoro • Sarah",
-            "Natural • Kokoro • Sky",
-            "Natural • Kokoro • Adam",
-            "Natural • Kokoro • Michael",
-            "Natural • Kokoro • Emma",
-            "Natural • Kokoro • Isabella",
-            "Natural • Kokoro • George",
-            "Natural • Kokoro • Lewis",
-            "Fast • Piper • Lessac",
-            "Fast • Piper • Amy",
-            "Fast • Piper • Cori",
-            "Android system voices…"
+        ) else arrayOf("lessac","amy","cori","android")
+        val labels = if (kokoro) arrayOf(
+            "Natural • Kokoro • af","Natural • Kokoro • Bella","Natural • Kokoro • Nicole",
+            "Natural • Kokoro • Sarah","Natural • Kokoro • Sky","Natural • Kokoro • Adam",
+            "Natural • Kokoro • Michael","Natural • Kokoro • Emma","Natural • Kokoro • Isabella",
+            "Natural • Kokoro • George","Natural • Kokoro • Lewis",
+            "Stable • Piper • Lessac","Stable • Piper • Amy","Stable • Piper • Cori","Android system voices…"
+        ) else arrayOf(
+            "Stable • Piper • Lessac","Stable • Piper • Amy","Stable • Piper • Cori","Android system voices…"
         )
         val current = keys.indexOf(saved).takeIf { it >= 0 } ?: 0
         AlertDialog.Builder(this).setTitle("RedUI • Voice Choices")
