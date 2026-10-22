@@ -672,21 +672,49 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         AlertDialog.Builder(this).setTitle("Android System Voices").setSingleChoiceItems(labels,current){d,which->val v=voices[which];tts.voice=v;selectedVoiceName=v.name;prefs.edit().putString("tts_voice",v.name).putBoolean("local_voice",false).apply();d.dismiss()}.setNeutralButton("GET MORE VOICES"){_,_->startActivity(Intent("com.android.settings.TTS_SETTINGS"))}.setNegativeButton("CLOSE",null).show()
     }
 
-    private fun importAttachments(uris: List<Uri>) {\n        if (uris.isEmpty()) return\n        status.text = "FILES • reading attachments…"\n        lifecycleScope.launch(Dispatchers.IO) {\n            val added = StringBuilder()\n            var count = 0\n            for (uri in uris.take(8)) {\n                try {\n                    val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else "attachment" } ?: "attachment"\n                    val mime = contentResolver.getType(uri) ?: ""\n                    if (mime.startsWith("image/")) {\n                        val image = InputImage.fromFilePath(this@MainActivity, uri)\n                        val result = Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image))\n                        val ocr = result.text.trim()\n                        added.append("
-[IMAGE: ").append(name).append("]
-")\n                        if (ocr.isNotBlank()) added.append("OCR text:
-").append(ocr.take(8000)).append("
-")\n                        else added.append("No readable text was detected. Red A I is text-only and cannot inspect image pixels directly.
-")\n                    } else if (mime.startsWith("text/") || name.endsWith(".txt",true) || name.endsWith(".md",true) || name.endsWith(".csv",true) || name.endsWith(".json",true) || name.endsWith(".xml",true) || name.endsWith(".html",true) || name.endsWith(".kt",true) || name.endsWith(".py",true) || name.endsWith(".java",true)) {\n                        val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(12000) } ?: ""\n                        added.append("
-[FILE: ").append(name).append("]
-").append(text).append("
-")\n                    } else {\n                        added.append("
-[FILE: ").append(name).append("]
-Type: ").append(mime.ifBlank { "unknown" }).append(". This file is attached, but Red A I needs extracted text to analyse its contents.
-")\n                    }\n                    count++\n                } catch (_: Throwable) {\n                    added.append("
-[ATTACHMENT ERROR]
-Could not read one selected file safely.
-")\n                }\n            }\n            withContext(Dispatchers.Main) {\n                attachmentContext.append(added)\n                attachmentCount += count\n                attachmentState.text = if (attachmentCount == 0) "NO ATTACHMENTS" else attachmentCount.toString() + " ATTACHMENT(S) READY • TAP ＋ TO ADD MORE"\n                status.text = if (attachmentCount == 0) "FILES • nothing imported" else "FILES • " + attachmentCount + " ready for Red A I"\n            }\n        }\n    }\n\n    private fun clearAttachments() {\n        attachmentContext.setLength(0)\n        attachmentCount = 0\n        if (::attachmentState.isInitialized) attachmentState.text = "NO ATTACHMENTS"\n    }\n\n    private fun showWebSearch(){
+    private fun importAttachments(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        status.text = "FILES • reading attachments…"
+        lifecycleScope.launch(Dispatchers.IO) {
+            val added = StringBuilder()
+            var count = 0
+            for (uri in uris.take(8)) {
+                try {
+                    val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else "attachment" } ?: "attachment"
+                    val mime = contentResolver.getType(uri) ?: ""
+                    if (mime.startsWith("image/")) {
+                        val image = InputImage.fromFilePath(this@MainActivity, uri)
+                        val result = Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image))
+                        val ocr = result.text.trim()
+                        added.append("\n[IMAGE: ").append(name).append("]\n")
+                        if (ocr.isNotBlank()) added.append("OCR text:\n").append(ocr.take(8000)).append("\n")
+                        else added.append("No readable text was detected. Red A I is text-only and cannot inspect image pixels directly.\n")
+                    } else if (mime.startsWith("text/") || name.endsWith(".txt",true) || name.endsWith(".md",true) || name.endsWith(".csv",true) || name.endsWith(".json",true) || name.endsWith(".xml",true) || name.endsWith(".html",true) || name.endsWith(".kt",true) || name.endsWith(".py",true) || name.endsWith(".java",true)) {
+                        val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(12000) } ?: ""
+                        added.append("\n[FILE: ").append(name).append("]\n").append(text).append("\n")
+                    } else {
+                        added.append("\n[FILE: ").append(name).append("]\nType: ").append(mime.ifBlank { "unknown" }).append(". This file is attached, but Red A I needs extracted text to analyse its contents.\n")
+                    }
+                    count++
+                } catch (_: Throwable) {
+                    added.append("\n[ATTACHMENT ERROR]\nCould not read one selected file safely.\n")
+                }
+            }
+            withContext(Dispatchers.Main) {
+                attachmentContext.append(added)
+                attachmentCount += count
+                attachmentState.text = if (attachmentCount == 0) "NO ATTACHMENTS" else attachmentCount.toString() + " ATTACHMENT(S) READY • TAP ＋ TO ADD MORE"
+                status.text = if (attachmentCount == 0) "FILES • nothing imported" else "FILES • " + attachmentCount + " ready for Red A I"
+            }
+        }
+    }
+
+    private fun clearAttachments() {
+        attachmentContext.setLength(0)
+        attachmentCount = 0
+        if (::attachmentState.isInitialized) attachmentState.text = "NO ATTACHMENTS"
+    }
+    private fun showWebSearch(){
         val q=EditText(this).apply{hint="Search the web…";setTextColor(Color.WHITE);setHintTextColor(Color.GRAY);textSize=16f;setSingleLine(true)}
         AlertDialog.Builder(this).setTitle("RedUI • Web Search").setView(q).setNegativeButton("CLOSE",null).setPositiveButton("SEARCH"){_,_->runWebSearch(q.text.toString().trim())}.show()
     }
