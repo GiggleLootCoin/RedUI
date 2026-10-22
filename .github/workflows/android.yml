@@ -36,16 +36,68 @@ jobs:
           mkdir -p app/src/main/res/drawable-nodpi
           cp lobby-hero.jpg app/src/main/res/drawable-nodpi/lobby_hero.jpg
 
-      - name: Reuse verified offline voice test clips
+      - name: Generate verified offline voice test clips
         run: |
-          mkdir -p app/src/main/assets/testvoices /tmp/redui-v76
-          curl -L --fail --retry 3 -o /tmp/redui-v76/redui-v76.apk https://github.com/GiggleLootCoin/RedUI/releases/download/v76/app-arm64-v8a-release.apk
-          unzip -j -o /tmp/redui-v76/redui-v76.apk 'assets/testvoices/lessac.wav' 'assets/testvoices/amy.wav' 'assets/testvoices/cori.wav' -d app/src/main/assets/testvoices
+          python3 -m pip install --upgrade pip
+          python3 -m pip install "sherpa-onnx==1.13.8"
+          mkdir -p /tmp/redui-tts app/src/main/assets/testvoices
+          for MODEL in vits-piper-en_US-lessac-medium vits-piper-en_US-amy-medium vits-piper-en_GB-cori-medium; do
+            curl -L --fail --retry 3 -o "/tmp/$MODEL.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$MODEL.tar.bz2"
+            tar -xjf "/tmp/$MODEL.tar.bz2" -C /tmp/redui-tts
+          done
+          python3 - <<'PY'
+          import struct
+          import sys
+          import wave
+          import sherpa_onnx
+
+          voices = [
+              ("lessac", "/tmp/redui-tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx", "/tmp/redui-tts/vits-piper-en_US-lessac-medium/tokens.txt", "/tmp/redui-tts/vits-piper-en_US-lessac-medium/espeak-ng-data"),
+              ("amy", "/tmp/redui-tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx", "/tmp/redui-tts/vits-piper-en_US-amy-medium/tokens.txt", "/tmp/redui-tts/vits-piper-en_US-amy-medium/espeak-ng-data"),
+              ("cori", "/tmp/redui-tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx", "/tmp/redui-tts/vits-piper-en_GB-cori-medium/tokens.txt", "/tmp/redui-tts/vits-piper-en_GB-cori-medium/espeak-ng-data"),
+          ]
+
+          for key, model, tokens, data_dir in voices:
+              cfg = sherpa_onnx.OfflineTtsConfig(
+                  model=sherpa_onnx.OfflineTtsModelConfig(
+                      vits=sherpa_onnx.OfflineTtsVitsModelConfig(
+                          model=model,
+                          tokens=tokens,
+                          data_dir=data_dir,
+                      ),
+                      num_threads=2,
+                      debug=False,
+                      provider="cpu",
+                  ),
+                  max_num_sentences=1,
+              )
+              if not cfg.validate():
+                  raise RuntimeError("Invalid TTS config for " + key)
+              tts = sherpa_onnx.OfflineTts(cfg)
+              audio = tts.generate(
+                  "Hello. This is the " + key + " voice in Red U I.",
+                  sid=0,
+                  speed=1.0,
+              )
+              if len(audio.samples) == 0:
+                  raise RuntimeError("No audio generated for " + key)
+              out = "app/src/main/assets/testvoices/" + key + ".wav"
+              with wave.open(out, "wb") as wf:
+                  wf.setnchannels(1)
+                  wf.setsampwidth(2)
+                  wf.setframerate(audio.sample_rate)
+                  frames = bytearray()
+                  for sample in audio.samples:
+                      sample = max(-1.0, min(1.0, float(sample)))
+                      frames.extend(struct.pack("<h", int(sample * 32767.0)))
+                  wf.writeframes(frames)
+              print("generated", out, audio.sample_rate, len(audio.samples))
+          PY
           test -s app/src/main/assets/testvoices/lessac.wav
           test -s app/src/main/assets/testvoices/amy.wav
           test -s app/src/main/assets/testvoices/cori.wav
           ls -lh app/src/main/assets/testvoices
-          rm -rf /tmp/redui-v76
+          rm -rf /tmp/redui-tts
 
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
