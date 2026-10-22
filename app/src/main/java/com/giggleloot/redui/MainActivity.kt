@@ -694,30 +694,10 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         if(s.isBlank()){if(handsFree)startListening();return}
         stopLocalSpeech()
         if (prefs.getBoolean("local_voice", true)) {
-            if (localTts != null) {
-                speakWithLocalVoice(s)
-            } else {
-                val key = prefs.getString("local_voice_key", localVoiceKey) ?: localVoiceKey
-                localVoiceKey = key
-                localSpeakerId = speakerIdFor(key)
-                val label = localVoiceLabel(key)
-                lifecycleScope.launch(Dispatchers.IO) {
-                    try {
-                        val engine = buildLocalVoiceEngine(key)
-                        withContext(Dispatchers.Main) {
-                            localTts?.release()
-                            localTts = engine
-                            status.text = "LOCAL • $label • ready"
-                            speakWithLocalVoice(s)
-                        }
-                    } catch (e: Throwable) {
-                        withContext(Dispatchers.Main) {
-                            status.text = "LOCAL • $label FAILED • " + (e.message ?: "unknown voice error")
-                            if (handsFree) resumeListening()
-                        }
-                    }
-                }
-            }
+            val key = prefs.getString("local_voice_key", localVoiceKey) ?: localVoiceKey
+            localVoiceKey = key
+            localSpeakerId = speakerIdFor(key)
+            speakWithLocalVoice(s, false)
         } else {
             speakWithAndroidTts(s)
         }
@@ -767,23 +747,28 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
     }
 
     private fun showVoiceChoices(){
-        val kokoro = kokoroAllowed()
         val saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
-        val keys = if (kokoro) arrayOf(
+        val kokoro = kokoroAllowed()
+        val keys = arrayOf(
             "kokoro-0","kokoro-1","kokoro-2","kokoro-3","kokoro-4",
             "kokoro-5","kokoro-6","kokoro-7","kokoro-8","kokoro-9","kokoro-10",
             "lessac","amy","cori","android"
-        ) else arrayOf("lessac","amy","cori","android")
-        val labels = if (kokoro) arrayOf(
-            "Natural • Kokoro • af","Natural • Kokoro • Bella","Natural • Kokoro • Nicole",
-            "Natural • Kokoro • Sarah","Natural • Kokoro • Sky","Natural • Kokoro • Adam",
-            "Natural • Kokoro • Michael","Natural • Kokoro • Emma","Natural • Kokoro • Isabella",
-            "Natural • Kokoro • George","Natural • Kokoro • Lewis",
-            "Stable • Piper • Lessac","Stable • Piper • Amy","Stable • Piper • Cori","Android system voices…"
-        ) else arrayOf(
+        )
+        val labels = arrayOf(
+            if(kokoro)"Natural • Kokoro • af" else "Natural • Kokoro • af • high-memory only",
+            if(kokoro)"Natural • Kokoro • Bella" else "Natural • Kokoro • Bella • high-memory only",
+            if(kokoro)"Natural • Kokoro • Nicole" else "Natural • Kokoro • Nicole • high-memory only",
+            if(kokoro)"Natural • Kokoro • Sarah" else "Natural • Kokoro • Sarah • high-memory only",
+            if(kokoro)"Natural • Kokoro • Sky" else "Natural • Kokoro • Sky • high-memory only",
+            if(kokoro)"Natural • Kokoro • Adam" else "Natural • Kokoro • Adam • high-memory only",
+            if(kokoro)"Natural • Kokoro • Michael" else "Natural • Kokoro • Michael • high-memory only",
+            if(kokoro)"Natural • Kokoro • Emma" else "Natural • Kokoro • Emma • high-memory only",
+            if(kokoro)"Natural • Kokoro • Isabella" else "Natural • Kokoro • Isabella • high-memory only",
+            if(kokoro)"Natural • Kokoro • George" else "Natural • Kokoro • George • high-memory only",
+            if(kokoro)"Natural • Kokoro • Lewis" else "Natural • Kokoro • Lewis • high-memory only",
             "Stable • Piper • Lessac","Stable • Piper • Amy","Stable • Piper • Cori","Android system voices…"
         )
-        val current = keys.indexOf(saved).takeIf { it >= 0 } ?: 0
+        val current = keys.indexOf(saved).takeIf { it >= 0 } ?: 11
         AlertDialog.Builder(this).setTitle("RedUI • Voice Choices")
             .setSingleChoiceItems(labels,current){d,which->
                 when (val key = keys[which]) {
