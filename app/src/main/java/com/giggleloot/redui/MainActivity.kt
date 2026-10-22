@@ -523,7 +523,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", true).apply()
         status.text = "LOCAL • $label • selected"
         Toast.makeText(this, "$label selected • testing voice", Toast.LENGTH_SHORT).show()
-        speakWithLocalVoice("Hello. I am $label. This is a Red U I voice test.", true)
+        playBundledVoiceTest(key)
     }
 
     private fun stopLocalSpeech() {
@@ -849,8 +849,59 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
             Toast.makeText(this, "That Kokoro voice needs more memory than this Galaxy A12 safely provides. Choose Piper • Lessac, Amy, or Cori.", Toast.LENGTH_LONG).show()
             return
         }
+        if (key == "android") {
+            speakWithAndroidTts("Hello. This is RedAI speaking locally through Red U I.")
+            return
+        }
         prefs.edit().putBoolean("local_voice", true).putString("local_voice_key", key).apply()
-        speakWithLocalVoice("Hello. This is RedAI speaking locally through Red U I.", true)
+        playBundledVoiceTest(key)
+    }
+
+    private fun playBundledVoiceTest(key: String) {
+        if (key.startsWith("kokoro-")) {
+            Toast.makeText(this, "Kokoro test playback is reserved for higher-memory phones. Use a Piper voice on this Galaxy A12.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (key !in setOf("lessac", "amy", "cori")) {
+            Toast.makeText(this, "Choose a Piper or Android system voice first.", Toast.LENGTH_LONG).show()
+            return
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val wav = File(cacheDir, "redui-test-$key.wav")
+            try {
+                assets.open("testvoices/$key.wav").use { input ->
+                    wav.outputStream().use { output -> input.copyTo(output) }
+                }
+                withContext(Dispatchers.Main) {
+                    stopLocalSpeech()
+                    val p = MediaPlayer()
+                    localPlayer = p
+                    p.setDataSource(wav.absolutePath)
+                    p.setOnCompletionListener {
+                        localPlayer?.release()
+                        localPlayer = null
+                        wav.delete()
+                        resumeListening()
+                    }
+                    p.setOnErrorListener { _, _, _ ->
+                        localPlayer?.release()
+                        localPlayer = null
+                        wav.delete()
+                        status.text = "LOCAL • voice test playback failed"
+                        if (handsFree) resumeListening()
+                        true
+                    }
+                    p.prepare()
+                    p.start()
+                    status.text = "LOCAL • " + localVoiceLabel(key) + " • voice test"
+                }
+            } catch (e: Throwable) {
+                wav.delete()
+                withContext(Dispatchers.Main) {
+                    status.text = "LOCAL • voice test unavailable • " + (e.message ?: "audio error")
+                }
+            }
+        }
     }
 
     private fun saveImageUri(key:String,uri:Uri?){
