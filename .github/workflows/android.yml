@@ -36,42 +36,23 @@ jobs:
           mkdir -p app/src/main/res/drawable-nodpi
           cp lobby-hero.jpg app/src/main/res/drawable-nodpi/lobby_hero.jpg
 
-      - name: Add offline local voice engine
-        run: |
-          mkdir -p app/libs app/src/main/assets/tts
-          curl -L --fail --retry 3 -o app/libs/sherpa-onnx-1.13.8.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar
-          for MODEL in             kokoro-int8-en-v0_19             vits-piper-en_GB-cori-medium             vits-piper-en_US-amy-medium             vits-piper-en_US-lessac-medium; do
-            curl -L --fail --retry 3 -o "/tmp/$MODEL.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$MODEL.tar.bz2"
-            tar -xjf "/tmp/$MODEL.tar.bz2" -C app/src/main/assets/tts
-            rm "/tmp/$MODEL.tar.bz2"
-          done
-          echo "Installed offline voice files:"
-          find app/src/main/assets/tts -maxdepth 4 -type f -printf '%p %s bytes\n'
-
-      - name: Pre-generate safe offline voice test clips
+      - name: Generate safe offline voice test clips
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install "sherpa-onnx==1.13.8"
-          mkdir -p app/src/main/assets/testvoices
-          sherpa-onnx-offline-tts --vits-model=app/src/main/assets/tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx --vits-tokens=app/src/main/assets/tts/vits-piper-en_US-lessac-medium/tokens.txt --vits-data-dir=app/src/main/assets/tts/vits-piper-en_US-lessac-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/lessac.wav "Hello. This is the Lessac voice in Red U I."
-          sherpa-onnx-offline-tts --vits-model=app/src/main/assets/tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx --vits-tokens=app/src/main/assets/tts/vits-piper-en_US-amy-medium/tokens.txt --vits-data-dir=app/src/main/assets/tts/vits-piper-en_US-amy-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/amy.wav "Hello. This is the Amy voice in Red U I."
-          sherpa-onnx-offline-tts --vits-model=app/src/main/assets/tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx --vits-tokens=app/src/main/assets/tts/vits-piper-en_GB-cori-medium/tokens.txt --vits-data-dir=app/src/main/assets/tts/vits-piper-en_GB-cori-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/cori.wav "Hello. This is the Cori voice in Red U I."
-          ls -lh app/src/main/assets/testvoices
+          mkdir -p /tmp/redui-tts app/src/main/assets/testvoices
+          for MODEL in vits-piper-en_US-lessac-medium vits-piper-en_US-amy-medium vits-piper-en_GB-cori-medium; do
+            curl -L --fail --retry 3 -o "/tmp/$MODEL.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$MODEL.tar.bz2"
+            tar -xjf "/tmp/$MODEL.tar.bz2" -C /tmp/redui-tts
+          done
+          sherpa-onnx-offline-tts --vits-model=/tmp/redui-tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx --vits-tokens=/tmp/redui-tts/vits-piper-en_US-lessac-medium/tokens.txt --vits-data-dir=/tmp/redui-tts/vits-piper-en_US-lessac-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/lessac.wav "Hello. This is the Lessac voice in Red U I."
+          sherpa-onnx-offline-tts --vits-model=/tmp/redui-tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx --vits-tokens=/tmp/redui-tts/vits-piper-en_US-amy-medium/tokens.txt --vits-data-dir=/tmp/redui-tts/vits-piper-en_US-amy-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/amy.wav "Hello. This is the Amy voice in Red U I."
+          sherpa-onnx-offline-tts --vits-model=/tmp/redui-tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx --vits-tokens=/tmp/redui-tts/vits-piper-en_GB-cori-medium/tokens.txt --vits-data-dir=/tmp/redui-tts/vits-piper-en_GB-cori-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/cori.wav "Hello. This is the Cori voice in Red U I."
           test -s app/src/main/assets/testvoices/lessac.wav
           test -s app/src/main/assets/testvoices/amy.wav
           test -s app/src/main/assets/testvoices/cori.wav
-          test -s app/src/main/assets/tts/kokoro-int8-en-v0_19/model.int8.onnx
-          test -s app/src/main/assets/tts/kokoro-int8-en-v0_19/voices.bin
-          test -s app/src/main/assets/tts/kokoro-int8-en-v0_19/tokens.txt
-          test -d app/src/main/assets/tts/kokoro-int8-en-v0_19/espeak-ng-data
-          test -s app/src/main/assets/tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx
-          test -s app/src/main/assets/tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx
-          test -s app/src/main/assets/tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx
-          for DIR in             vits-piper-en_GB-cori-medium             vits-piper-en_US-amy-medium             vits-piper-en_US-lessac-medium; do
-            test -s "app/src/main/assets/tts/$DIR/tokens.txt"
-            test -d "app/src/main/assets/tts/$DIR/espeak-ng-data"
-            test "$(find "app/src/main/assets/tts/$DIR/espeak-ng-data" -type f | wc -l)" -gt 0
-          done
+          ls -lh app/src/main/assets/testvoices
+          rm -rf /tmp/redui-tts
 
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
@@ -84,8 +65,8 @@ jobs:
           find app/build/outputs -maxdepth 5 -type f -print
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
-          echo "Checking APK contains all bundled offline TTS voices:"
-          for ASSET in             'assets/tts/kokoro-int8-en-v0_19/model.int8.onnx'             'assets/tts/kokoro-int8-en-v0_19/voices.bin'             'assets/tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx'             'assets/tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx'             'assets/tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx'; do
+          echo "Checking APK contains the three safe voice-test WAV files:"
+          for ASSET in 'assets/testvoices/lessac.wav' 'assets/testvoices/amy.wav' 'assets/testvoices/cori.wav'; do
             unzip -l "$APK" | grep -q "$ASSET"
           done
 
