@@ -10,8 +10,8 @@ android {
         applicationId = "com.giggleloot.redui"
         minSdk = 29
         targetSdk = 35
-        versionCode = 85
-        versionName = "85"
+        versionCode = 94
+        versionName = "94"
     }
     splits {
         abi {
@@ -43,4 +43,5 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.llamatik:library:1.10.1")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 }
