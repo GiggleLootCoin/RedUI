@@ -47,6 +47,19 @@ jobs:
           done
           echo "Installed offline voice files:"
           find app/src/main/assets/tts -maxdepth 4 -type f -printf '%p %s bytes\n'
+
+      - name: Pre-generate safe offline voice test clips
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install "sherpa-onnx==1.13.8"
+          mkdir -p app/src/main/assets/testvoices
+          sherpa-onnx-offline-tts --vits-model=app/src/main/assets/tts/vits-piper-en_US-lessac-medium/en_US-lessac-medium.onnx --vits-tokens=app/src/main/assets/tts/vits-piper-en_US-lessac-medium/tokens.txt --vits-data-dir=app/src/main/assets/tts/vits-piper-en_US-lessac-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/lessac.wav "Hello. This is the Lessac voice in Red U I."
+          sherpa-onnx-offline-tts --vits-model=app/src/main/assets/tts/vits-piper-en_US-amy-medium/en_US-amy-medium.onnx --vits-tokens=app/src/main/assets/tts/vits-piper-en_US-amy-medium/tokens.txt --vits-data-dir=app/src/main/assets/tts/vits-piper-en_US-amy-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/amy.wav "Hello. This is the Amy voice in Red U I."
+          sherpa-onnx-offline-tts --vits-model=app/src/main/assets/tts/vits-piper-en_GB-cori-medium/en_GB-cori-medium.onnx --vits-tokens=app/src/main/assets/tts/vits-piper-en_GB-cori-medium/tokens.txt --vits-data-dir=app/src/main/assets/tts/vits-piper-en_GB-cori-medium/espeak-ng-data --num-threads=2 --output-filename=app/src/main/assets/testvoices/cori.wav "Hello. This is the Cori voice in Red U I."
+          ls -lh app/src/main/assets/testvoices
+          test -s app/src/main/assets/testvoices/lessac.wav
+          test -s app/src/main/assets/testvoices/amy.wav
+          test -s app/src/main/assets/testvoices/cori.wav
           test -s app/src/main/assets/tts/kokoro-int8-en-v0_19/model.int8.onnx
           test -s app/src/main/assets/tts/kokoro-int8-en-v0_19/voices.bin
           test -s app/src/main/assets/tts/kokoro-int8-en-v0_19/tokens.txt
