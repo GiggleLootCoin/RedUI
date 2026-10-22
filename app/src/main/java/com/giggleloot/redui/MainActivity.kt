@@ -389,7 +389,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
 
     private fun initLocalVoiceEngine() {
         var saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
-        if (saved !in setOf("lessac", "amy", "cori", "android")) saved = "lessac"
+        if (saved !in setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados", "android")) saved = "lessac"
         localVoiceKey = saved
         prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", false).apply()
         status.text = "LOCAL • ready • safe Android voice path"
@@ -401,6 +401,11 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
         "lessac" -> "Piper • Lessac sample"
         "amy" -> "Piper • Amy sample"
         "cori" -> "Piper • Cori sample"
+        "alan" -> "Piper • Alan sample"
+        "joe" -> "Piper • Joe sample"
+        "john" -> "Piper • John sample"
+        "kathleen" -> "Piper • Kathleen sample"
+        "glados" -> "Piper • GLaDOS sample"
         "android" -> "Android system voice"
         else -> key
     }
@@ -599,9 +604,14 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
                 labels.add("LIVE • " + voice.name + " • " + voice.locale.toLanguageTag())
                 keys.add("android:" + index)
             }
-            labels.add("SAMPLE • Piper • Lessac"); keys.add("lessac")
-            labels.add("SAMPLE • Piper • Amy"); keys.add("amy")
-            labels.add("SAMPLE • Piper • Cori"); keys.add("cori")
+            labels.add("OFFLINE SAMPLE • Piper • Lessac"); keys.add("lessac")
+            labels.add("OFFLINE SAMPLE • Piper • Amy"); keys.add("amy")
+            labels.add("OFFLINE SAMPLE • Piper • Cori"); keys.add("cori")
+            labels.add("OFFLINE SAMPLE • Piper • Alan"); keys.add("alan")
+            labels.add("OFFLINE SAMPLE • Piper • Joe"); keys.add("joe")
+            labels.add("OFFLINE SAMPLE • Piper • John"); keys.add("john")
+            labels.add("OFFLINE SAMPLE • Piper • Kathleen"); keys.add("kathleen")
+            labels.add("OFFLINE SAMPLE • Piper • GLaDOS"); keys.add("glados")
             val saved = prefs.getString("tts_voice", "") ?: ""
             val current = voices.indexOfFirst { it.name == saved }.takeIf { it >= 0 } ?: 0
             AlertDialog.Builder(this).setTitle("RedUI • Working Voice Choices")
@@ -697,7 +707,7 @@ If asked who you are, say you are RedAI, created by Red, running locally in Red 
     }
 
     private fun playBundledVoiceTest(key: String) {
-        if (key !in setOf("lessac", "amy", "cori")) {
+        if (key !in setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados")) {
             Toast.makeText(this, "Choose a working Android live voice or a Piper sample first.", Toast.LENGTH_LONG).show()
             return
         }
