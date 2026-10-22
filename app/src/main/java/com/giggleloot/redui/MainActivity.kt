@@ -60,7 +60,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var localSpeakerId = 0
     private var localPlayer: MediaPlayer? = null
     private var loadedModelPath = ""
-    private var loadedModelPath = ""
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
 
     private val redAiSystemPrompt = """
