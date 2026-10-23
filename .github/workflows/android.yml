@@ -107,6 +107,8 @@ jobs:
           for voice in lessac amy cori alan joe john kathleen glados; do
             test -s "app/src/main/assets/testvoices/$voice.wav"
           done
+          test -s app/src/main/res/drawable-nodpi/lobby_hero.jpg
+          test -s app/src/main/res/drawable/redui_logo.xml
           ls -lh app/src/main/assets/testvoices
           rm -rf /tmp/redui-tts
 
@@ -121,10 +123,11 @@ jobs:
           find app/build/outputs -maxdepth 5 -type f -print
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
-          echo "Checking APK contains the three safe voice-test WAV files:"
-          for ASSET in 'assets/testvoices/lessac.wav' 'assets/testvoices/amy.wav' 'assets/testvoices/cori.wav'; do
+          echo "Checking APK contains all bundled voice-test WAV files and core assets:"
+          for ASSET in assets/testvoices/lessac.wav assets/testvoices/amy.wav assets/testvoices/cori.wav assets/testvoices/alan.wav assets/testvoices/joe.wav assets/testvoices/john.wav assets/testvoices/kathleen.wav assets/testvoices/glados.wav; do
             unzip -l "$APK" | grep -q "$ASSET"
           done
+          unzip -l "$APK" | grep -q 'AndroidManifest.xml'
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
