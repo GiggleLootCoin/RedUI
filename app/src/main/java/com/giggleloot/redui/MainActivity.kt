@@ -238,6 +238,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             letterSpacing = .12f
         })
         header.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
+        header.addView(button("VOICE"){showVoiceChoices()},LinearLayout.LayoutParams(dp(82),dp(44)))
         header.addView(button("SETTINGS"){showSettings()},LinearLayout.LayoutParams(dp(98),dp(44)))
         content.addView(header)
 
@@ -518,11 +519,12 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             try {
                 if (shouldAutoSearch(prompt)) {
                     withContext(Dispatchers.Main) { status.text="WEB • Red A I is checking fresh information…" }
-                    webContext = fetchWebText(prompt).take(10000)
+                    webContext = fetchWebText(prompt).take(12000)
+                    if (webContext.isBlank()) withContext(Dispatchers.Main) { status.text = "WEB • no results returned • answering from local model" }
                 } else {
                     webContext = ""
                 }
-                LlamaBridge.updateGenerateParams(.45f,220,.92f,40,1.06f,1536,4,true,false,160,0)
+                LlamaBridge.updateGenerateParams(.45f,256,.92f,40,1.06f,2048,4,true,false,128,0)
                 if (loadedModelPath != f.absolutePath) {
                     withContext(Dispatchers.Main){status.text="LOCAL • loading • "+f.name}
                     if(!LlamaBridge.initGenerateModel(f.absolutePath))throw Exception("Could not load GGUF")
@@ -723,26 +725,41 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         if (::attachmentState.isInitialized) attachmentState.text = "NO ATTACHMENTS"
     }
     private fun shouldAutoSearch(query:String):Boolean {
-        val q=query.lowercase(Locale.ROOT)
-        val triggers=listOf("latest","today","tonight","current","currently","news","weather","price","prices","stock","score","scores","schedule","release date","update","updated","recent","right now","this week","this month","search the web","look up","find online","who is the current","what happened")
-        return triggers.any { q.contains(it) }
+        val q=query.lowercase(Locale.ROOT).trim()
+        if (q.isBlank()) return false
+        val explicit=listOf("search the web","search online","look this up","look it up","look online","find online","find on the web","google this","web search")
+        if (explicit.any { q.contains(it) }) return true
+        val current=listOf("latest","today","tonight","current","currently","right now","this week","this month","this year","recent","recently","newest","breaking","news","weather","forecast","price","prices","stock","stocks","score","scores","schedule","release date","released","update","updated","what happened","who is the current","as of")
+        if (current.any { q.contains(it) }) return true
+        val question=q.startsWith("who ")||q.startsWith("what ")||q.startsWith("when ")||q.startsWith("where ")||q.startsWith("which ")||q.startsWith("how much ")||q.startsWith("how many ")
+        val factual=listOf("is ","are ","does ","did ","has ","have ","can ","will ").any { q.contains(it) }
+        return question && factual && q.length >= 18
     }
 
     private fun fetchWebText(query:String):String {
         return try {
             val encoded=java.net.URLEncoder.encode(query,"UTF-8")
             val conn=java.net.URL("https://html.duckduckgo.com/html/?q="+encoded).openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout=4500
-            conn.readTimeout=6500
-            conn.setRequestProperty("User-Agent","Mozilla/5.0 RedUI/95")
-            val html=conn.inputStream.bufferedReader().use{it.readText()}
+            conn.requestMethod="GET"
+            conn.connectTimeout=7000
+            conn.readTimeout=9000
+            conn.instanceFollowRedirects=true
+            conn.setRequestProperty("User-Agent","Mozilla/5.0 (Android) RedUI")
+            conn.setRequestProperty("Accept","text/html,application/xhtml+xml")
+            val html=conn.inputStream.bufferedReader(Charsets.UTF_8).use{it.readText()}
             conn.disconnect()
-            android.text.Html.fromHtml(
-                html.replace(Regex("(?is)<script.*?</script>"),"")
-                    .replace(Regex("(?is)<style.*?</style>"),"")
-                    .replace(Regex("(?is)<[^>]+>")," "),
-                android.text.Html.FROM_HTML_MODE_LEGACY
-            ).toString().replace(Regex("\\s+")," ").trim()
+            val clean=html.replace(Regex("(?is)<script.*?</script>"),"").replace(Regex("(?is)<style.*?</style>"),"")
+            val blocks=Regex("(?is)<div[^>]*class=[\"'][^\"']*result[^\"']*[\"'][^>]*>(.*?)</div>\\s*</div>").findAll(clean).map{it.groupValues[1]}.take(8).toList()
+            val out=blocks.map { block ->
+                val title=Regex("(?is)<a[^>]*class=[\"'][^\"']*result__a[^\"']*[\"'][^>]*>(.*?)</a>").find(block)?.groupValues?.get(1).orEmpty()
+                val snippet=Regex("(?is)<[^>]*class=[\"'][^\"']*result__snippet[^\"']*[\"'][^>]*>(.*?)</[^>]+>").find(block)?.groupValues?.get(1).orEmpty()
+                val href=Regex("(?is)<a[^>]*class=[\"'][^\"']*result__a[^\"']*[^>]*href=[\"']([^\"']+)[\"']").find(block)?.groupValues?.get(1).orEmpty()
+                val t=android.text.Html.fromHtml(title,android.text.Html.FROM_HTML_MODE_LEGACY).toString().replace(Regex("\\s+")," ").trim()
+                val sn=android.text.Html.fromHtml(snippet,android.text.Html.FROM_HTML_MODE_LEGACY).toString().replace(Regex("\\s+")," ").trim()
+                if(t.isBlank()&&sn.isBlank()) "" else "TITLE: $t\nURL: $href\nSNIPPET: $sn"
+            }.filter{it.isNotBlank()}
+            if(out.isNotEmpty()) out.joinToString("\n\n").take(12000)
+            else android.text.Html.fromHtml(clean.replace(Regex("(?is)<[^>]+>")," "),android.text.Html.FROM_HTML_MODE_LEGACY).toString().replace(Regex("\\s+")," ").trim().take(12000)
         } catch (_:Throwable) { "" }
     }
 
