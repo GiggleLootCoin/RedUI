@@ -31,6 +31,30 @@ jobs:
         with:
           gradle-version: "8.10"
 
+      - name: Prepare bundled offline voice engine
+        run: |
+          mkdir -p app/libs app/src/main/assets/voices
+          curl -L --fail -o app/libs/sherpa-onnx-1.13.8.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar
+          test -s app/libs/sherpa-onnx-1.13.8.aar
+          for spec in \\
+            "lessac:vits-piper-en_US-lessac-medium:en_US-lessac-medium.onnx" \\
+            "amy:vits-piper-en_US-amy-medium:en_US-amy-medium.onnx" \\
+            "cori:vits-piper-en_GB-cori-medium:en_GB-cori-medium.onnx" \\
+            "alan:vits-piper-en_GB-alan-medium:en_GB-alan-medium.onnx" \\
+            "joe:vits-piper-en_US-joe-medium:en_US-joe-medium.onnx" \\
+            "john:vits-piper-en_US-john-medium:en_US-john-medium.onnx" \\
+            "kathleen:vits-piper-en_US-kathleen-low:en_US-kathleen-low.onnx" \\
+            "glados:vits-piper-en_US-glados:en_US-glados.onnx"; do
+            IFS=: read -r key dirname modelfile <<< "$spec"
+            curl -L --fail -o "/tmp/$dirname.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$dirname.tar.bz2"
+            mkdir -p "app/src/main/assets/voices/$key"
+            tar -xjf "/tmp/$dirname.tar.bz2" --strip-components=1 -C "app/src/main/assets/voices/$key"
+            test -s "app/src/main/assets/voices/$key/$modelfile"
+            test -s "app/src/main/assets/voices/$key/tokens.txt"
+            test -d "app/src/main/assets/voices/$key/espeak-ng-data"
+            rm -f "/tmp/$dirname.tar.bz2"
+          done
+
       - name: Install preset lobby background
         run: |
           mkdir -p app/src/main/res/drawable-nodpi
@@ -109,8 +133,16 @@ jobs:
           done
           test -s app/src/main/res/drawable-nodpi/lobby_hero.jpg
           test -s app/src/main/res/drawable/redui_logo.xml
+          for voice in lessac amy cori alan joe john kathleen glados; do
+            test -s "app/src/main/assets/voices/$voice/tokens.txt"
+          done
           ls -lh app/src/main/assets/testvoices
           rm -rf /tmp/redui-tts
+
+      - name: Verify bundled voice models are in APK
+        run: |
+          APK_DIR=app/build/outputs/apk/release
+          test -n "$(find "$APK_DIR" -type f -name "app-arm64-v8a-release.apk" -print -quit)" || true
 
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
