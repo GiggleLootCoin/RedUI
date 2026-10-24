@@ -31,6 +31,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.llamatik.library.platform.GenStream
+import com.k2fsa.sherpa.onnx.OfflineTts
+import com.k2fsa.sherpa.onnx.getOfflineTtsConfig
 import com.llamatik.library.platform.LlamaBridge
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
@@ -64,6 +66,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var localVoiceKey = "lessac"
     private var localSpeakerId = 0
     private var localPlayer: MediaPlayer? = null
+    private var localTts: OfflineTts? = null
+    private var localTtsLoadedKey = ""
     private var loadedModelPath = ""
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
     private val attachmentContext = StringBuilder()
@@ -147,6 +151,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         handsFree = false
         speech?.destroy()
         stopLocalSpeech()
+        closeLocalTts()
         handler.removeCallbacksAndMessages(null)
         if (::tts.isInitialized) { tts.stop(); tts.shutdown() }
         try { LlamaBridge.nativeCancelGenerate() } catch (_: Throwable) {}
@@ -407,10 +412,53 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         if (saved !in setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados", "android")) saved = "lessac"
         localVoiceKey = saved
         prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", false).apply()
-        status.text = "LOCAL • ready • safe Android voice path"
+        status.text = "LOCAL • ready • bundled offline voices installed"
     }
 
     private fun speakerIdFor(key: String): Int = 0
+
+    private fun voiceModelFile(key: String): String = when (key) {
+        "lessac" -> "en_US-lessac-medium.onnx"
+        "amy" -> "en_US-amy-medium.onnx"
+        "cori" -> "en_GB-cori-medium.onnx"
+        "alan" -> "en_GB-alan-medium.onnx"
+        "joe" -> "en_US-joe-medium.onnx"
+        "john" -> "en_US-john-medium.onnx"
+        "kathleen" -> "en_US-kathleen-low.onnx"
+        "glados" -> "en_US-glados.onnx"
+        else -> ""
+    }
+
+    private fun closeLocalTts() {
+        try { localTts?.release() } catch (_: Throwable) {}
+        localTts = null
+        localTtsLoadedKey = ""
+    }
+
+    private fun ensureLocalTts(key: String): OfflineTts? {
+        if (key == "android") return null
+        if (localTts != null && localTtsLoadedKey == key) return localTts
+        closeLocalTts()
+        val model = voiceModelFile(key)
+        if (model.isBlank()) return null
+        val dir = "voices/$key"
+        val config = getOfflineTtsConfig(
+            modelDir = dir,
+            modelName = model,
+            acousticModelName = "",
+            vocoder = "",
+            voices = "",
+            lexicon = "",
+            dataDir = "$dir/espeak-ng-data",
+            dictDir = "",
+            ruleFsts = "",
+            ruleFars = "",
+            numThreads = 2
+        )
+        localTts = OfflineTts(assetManager = assets, config = config)
+        localTtsLoadedKey = key
+        return localTts
+    }
 
     private fun localVoiceLabel(key:String):String = when(key) {
         "lessac" -> "Piper • Lessac sample"
@@ -428,12 +476,12 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     private fun selectLocalVoice(key: String, label: String) {
         stopLocalSpeech()
         localVoiceKey = key
-        prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", false).apply()
+        prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", key != "android").apply()
         status.text = "LOCAL • " + label + " • selected"
         if (key == "android") {
             ensureAndroidTts { showAndroidVoiceChoices(availableEnglishVoices()) }
         } else {
-            Toast.makeText(this, label + " selected • press TEST REDAI VOICE for the real sample", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, label + " installed • replies will use this voice offline", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -570,7 +618,47 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     private fun cleanForSpeech(s:String)=s.replace(Regex("<think>[\\s\\S]*?</think>"),"").replace(Regex("<\\|[^>]+\\|>"),"").trim()
     private fun speak(s:String){
         if(s.isBlank()){if(handsFree)startListening();return}
-        speakWithAndroidTts(s)
+        val clean = cleanForSpeech(s)
+        if (localVoiceKey == "android") speakWithAndroidTts(clean) else speakWithLocalVoice(clean)
+    }
+
+    private fun speakWithLocalVoice(s: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val key = localVoiceKey
+            val wav = File(cacheDir, "redui-voice-$key.wav")
+            try {
+                val engine = ensureLocalTts(key) ?: throw IllegalStateException("voice unavailable")
+                val audio = engine.generate(s, speakerIdFor(key), prefs.getFloat("tts_speed", 1f))
+                audio.save(wav.absolutePath)
+                withContext(Dispatchers.Main) {
+                    try {
+                        stopLocalSpeech()
+                        val p = MediaPlayer()
+                        localPlayer = p
+                        p.setDataSource(wav.absolutePath)
+                        p.setOnCompletionListener {
+                            try { localPlayer?.release() } catch (_:Throwable) {}
+                            localPlayer = null; wav.delete(); resumeListening()
+                        }
+                        p.setOnErrorListener { _, _, _ ->
+                            try { localPlayer?.release() } catch (_:Throwable) {}
+                            localPlayer = null; wav.delete(); status.text = "LOCAL • voice playback failed safely"
+                            if (handsFree) resumeListening(); true
+                        }
+                        p.prepare(); p.start()
+                        status.text = "LOCAL • " + localVoiceLabel(key) + " • SPEAKING"
+                    } catch (_: Throwable) {
+                        wav.delete(); status.text = "LOCAL • voice playback failed safely"; if (handsFree) resumeListening()
+                    }
+                }
+            } catch (_: Throwable) {
+                wav.delete()
+                withContext(Dispatchers.Main) {
+                    status.text = "LOCAL • bundled voice failed • Android fallback"
+                    speakWithAndroidTts(cleanForSpeech(s))
+                }
+            }
+        }
     }
 
     private fun speakWithAndroidTts(s:String){
