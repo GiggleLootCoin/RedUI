@@ -435,29 +435,65 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         localTtsLoadedKey = ""
     }
 
+    private fun copyAssetTree(assetPath: String, outDir: File) {
+        if (outDir.exists() && outDir.isFile) outDir.delete()
+        outDir.mkdirs()
+        val children = assets.list(assetPath) ?: emptyArray()
+        if (children.isEmpty()) {
+            assets.open(assetPath).use { input ->
+                outDir.outputStream().use { output -> input.copyTo(output) }
+            }
+            return
+        }
+        for (child in children) {
+            copyAssetTree("$assetPath/$child", File(outDir, child))
+        }
+    }
+
     private fun ensureLocalTts(key: String): OfflineTts? {
         if (key == "android") return null
         if (localTts != null && localTtsLoadedKey == key) return localTts
+
         closeLocalTts()
-        val model = voiceModelFile(key)
-        if (model.isBlank()) return null
-        val dir = "voices/$key"
+        val modelName = voiceModelFile(key)
+        if (modelName.isBlank()) return null
+
+        // The ONNX model and tokens stay in the APK assets.  The phoneme data is
+        // copied to real app storage first; this is the same Android strategy used
+        // by sherpa-onnx's own TTS engine and avoids treating an APK asset path as
+        // a normal filesystem path.
+        val assetDir = "voices/$key"
+        val dataDir = File(filesDir, "redui-tts/$key/espeak-ng-data")
+        val marker = File(dataDir, ".ready")
+        if (!marker.exists()) {
+            dataDir.parentFile?.mkdirs()
+            if (dataDir.exists()) dataDir.deleteRecursively()
+            copyAssetTree("$assetDir/espeak-ng-data", dataDir)
+            marker.writeText("RedUI offline voice data ready")
+        }
+
         val config = getOfflineTtsConfig(
-            modelDir = dir,
-            modelName = model,
+            modelDir = assetDir,
+            modelName = modelName,
             acousticModelName = "",
             vocoder = "",
             voices = "",
             lexicon = "",
-            dataDir = "$dir/espeak-ng-data",
+            dataDir = dataDir.absolutePath,
             dictDir = "",
             ruleFsts = "",
             ruleFars = "",
             numThreads = 2
         )
-        localTts = OfflineTts(assetManager = assets, config = config)
+
+        val engine = OfflineTts(assetManager = assets, config = config)
+        if (engine.numSpeakers() < 1) {
+            engine.release()
+            throw IllegalStateException("Bundled voice initialized without a speaker: $key")
+        }
+        localTts = engine
         localTtsLoadedKey = key
-        return localTts
+        return engine
     }
 
     private fun localVoiceLabel(key:String):String = when(key) {
@@ -475,16 +511,19 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
 
     private fun selectLocalVoice(key: String, label: String) {
         stopLocalSpeech()
-        if (localTtsLoadedKey != key) closeLocalTts()
+        closeLocalTts()
         localVoiceKey = key
         prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", key != "android").apply()
-        status.text = "VOICE • " + label + " • selected"
+
         if (key == "android") {
+            status.text = "VOICE • Android phone voices • explicitly selected"
             ensureAndroidTts { showAndroidVoiceChoices(availableEnglishVoices()) }
-        } else {
-            Toast.makeText(this, label + " selected • generating a live test with this exact voice", Toast.LENGTH_SHORT).show()
-            speakWithLocalVoice("Hello. " + label.substringBefore(" •") + " is now selected in Red U I.")
+            return
         }
+
+        status.text = "VOICE • $label • loading bundled model…"
+        Toast.makeText(this, "$label selected • testing the real bundled voice", Toast.LENGTH_SHORT).show()
+        speakWithLocalVoice("Hello. " + label.substringBefore(" •") + " is now selected in Red U I.")
     }
 
     private fun stopLocalSpeech() {
@@ -712,31 +751,31 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
 
     private fun showVoiceChoices(){
         val bundled = listOf(
-            "lessac" to "Lessac • bundled offline",
-            "amy" to "Amy • bundled offline",
-            "cori" to "Cori • bundled offline",
-            "alan" to "Alan • bundled offline",
-            "joe" to "Joe • bundled offline",
-            "john" to "John • bundled offline",
-            "kathleen" to "Kathleen • bundled offline",
-            "glados" to "GLaDOS • bundled offline"
+            "lessac" to "Lessac",
+            "amy" to "Amy",
+            "cori" to "Cori",
+            "alan" to "Alan",
+            "joe" to "Joe",
+            "john" to "John",
+            "kathleen" to "Kathleen",
+            "glados" to "GLaDOS"
         )
-        val labels = (bundled.map { it.second } + "Android system voices • phone voices").toTypedArray()
-        val current = bundled.indexOfFirst { it.first == localVoiceKey }.let {
-            if (localVoiceKey == "android") bundled.size else if (it >= 0) it else 0
-        }
+        val labels = bundled.map { (key,name) ->
+            if (key == localVoiceKey) "✓ $name — BUILT-IN OFFLINE • SELECTED"
+            else "$name — BUILT-IN OFFLINE"
+        }.toTypedArray()
+        val current = bundled.indexOfFirst { it.first == localVoiceKey }.coerceAtLeast(0)
+
         AlertDialog.Builder(this)
-            .setTitle("Red U I • 8 BUILT-IN OFFLINE VOICES")
-            .setMessage("Red U I includes 8 real offline voices below. They are built into this app and do NOT use your Samsung/Android phone voice. Tap one to generate speech from that exact voice. Android phone voices are only the final separate option.")
+            .setTitle("Red U I • BUNDLED VOICES")
+            .setMessage("These 8 voices are physically included in Red U I. They run locally from the bundled sherpa-onnx models. They do NOT use Samsung or Android Text-to-Speech.")
             .setSingleChoiceItems(labels,current){d,which->
-                if (which < bundled.size) {
-                    val (key,label)=bundled[which]
-                    d.dismiss()
-                    selectLocalVoice(key,label)
-                } else {
-                    d.dismiss()
-                    selectLocalVoice("android","Android system voices")
-                }
+                val (key,name)=bundled[which]
+                d.dismiss()
+                selectLocalVoice(key,"$name • bundled offline")
+            }
+            .setNeutralButton("ANDROID PHONE VOICES") { _, _ ->
+                selectLocalVoice("android","Android system voices")
             }
             .setNegativeButton("CLOSE",null)
             .show()
