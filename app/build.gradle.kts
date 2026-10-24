@@ -10,8 +10,8 @@ android {
         applicationId = "com.giggleloot.redui"
         minSdk = 29
         targetSdk = 35
-        versionCode = 101
-        versionName = "101"
+        versionCode = 104
+        versionName = "104"
     }
     splits {
         abi {
@@ -34,6 +34,10 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 
+repositories {
+    flatDir { dirs("libs") }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
@@ -43,5 +47,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.llamatik:library:1.10.1")
+    implementation(files("libs/sherpa-onnx-1.13.8.aar"))
     implementation("com.google.mlkit:text-recognition:16.0.1")
 }
