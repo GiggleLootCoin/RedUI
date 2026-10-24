@@ -36,16 +36,18 @@ jobs:
           mkdir -p app/libs app/src/main/assets/voices
           wget -q --show-progress --tries=5 --timeout=30 -O app/libs/sherpa-onnx-1.13.8.aar "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar?download=1"
           test -s app/libs/sherpa-onnx-1.13.8.aar
-          for spec in \\
-            "lessac:vits-piper-en_US-lessac-medium:en_US-lessac-medium.onnx" \\
-            "amy:vits-piper-en_US-amy-medium:en_US-amy-medium.onnx" \\
-            "cori:vits-piper-en_GB-cori-medium:en_GB-cori-medium.onnx" \\
-            "alan:vits-piper-en_GB-alan-medium:en_GB-alan-medium.onnx" \\
-            "joe:vits-piper-en_US-joe-medium:en_US-joe-medium.onnx" \\
-            "john:vits-piper-en_US-john-medium:en_US-john-medium.onnx" \\
-            "kathleen:vits-piper-en_US-kathleen-low:en_US-kathleen-low.onnx" \\
-            "glados:vits-piper-en_US-glados:en_US-glados.onnx"; do
-            IFS=: read -r key dirname modelfile <<< "$spec"
+          voices=(
+            "lessac|vits-piper-en_US-lessac-medium|en_US-lessac-medium.onnx"
+            "amy|vits-piper-en_US-amy-medium|en_US-amy-medium.onnx"
+            "cori|vits-piper-en_GB-cori-medium|en_GB-cori-medium.onnx"
+            "alan|vits-piper-en_GB-alan-medium|en_GB-alan-medium.onnx"
+            "joe|vits-piper-en_US-joe-medium|en_US-joe-medium.onnx"
+            "john|vits-piper-en_US-john-medium|en_US-john-medium.onnx"
+            "kathleen|vits-piper-en_US-kathleen-low|en_US-kathleen-low.onnx"
+            "glados|vits-piper-en_US-glados|en_US-glados.onnx"
+          )
+          for spec in "${voices[@]}"; do
+            IFS='|' read -r key dirname modelfile <<< "$spec"
             wget -q --show-progress --tries=5 --timeout=30 -O "/tmp/$dirname.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$dirname.tar.bz2"
             mkdir -p "app/src/main/assets/voices/$key"
             tar -xjf "/tmp/$dirname.tar.bz2" --strip-components=1 -C "app/src/main/assets/voices/$key"
