@@ -157,9 +157,15 @@ jobs:
           find app/build/outputs -maxdepth 5 -type f -print
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
-          echo "Checking APK contains all bundled voice-test WAV files and core assets:"
-          for ASSET in assets/testvoices/lessac.wav assets/testvoices/amy.wav assets/testvoices/cori.wav assets/testvoices/alan.wav assets/testvoices/joe.wav assets/testvoices/john.wav assets/testvoices/kathleen.wav assets/testvoices/glados.wav; do
-            unzip -l "$APK" | grep -q "$ASSET"
+          echo "Checking APK contains every real bundled TTS model, tokens, espeak data, test WAV, and core assets:"
+          for VOICE in lessac amy cori alan joe john kathleen glados; do
+            unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
+            unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
+            unzip -l "$APK" | grep -q "assets/voices/$VOICE/espeak-ng-data/"
+            unzip -l "$APK" | grep -q "assets/testvoices/$VOICE.wav"
+          done
+          for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-medium.onnx en_GB-alan-medium.onnx en_US-joe-medium.onnx en_US-john-medium.onnx en_US-kathleen-low.onnx en_US-glados.onnx; do
+            unzip -l "$APK" | grep -q "$MODEL"
           done
           unzip -l "$APK" | grep -q 'AndroidManifest.xml'
 
