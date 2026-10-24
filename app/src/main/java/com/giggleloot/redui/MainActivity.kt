@@ -411,7 +411,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         var saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
         if (saved !in setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados", "android")) saved = "lessac"
         localVoiceKey = saved
-        prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", false).apply()
+        prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", saved != "android").apply()
         status.text = "LOCAL • ready • bundled offline voices installed"
     }
 
@@ -461,27 +461,29 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     }
 
     private fun localVoiceLabel(key:String):String = when(key) {
-        "lessac" -> "Piper • Lessac sample"
-        "amy" -> "Piper • Amy sample"
-        "cori" -> "Piper • Cori sample"
-        "alan" -> "Piper • Alan sample"
-        "joe" -> "Piper • Joe sample"
-        "john" -> "Piper • John sample"
-        "kathleen" -> "Piper • Kathleen sample"
-        "glados" -> "Piper • GLaDOS sample"
+        "lessac" -> "Lessac • bundled offline"
+        "amy" -> "Amy • bundled offline"
+        "cori" -> "Cori • bundled offline"
+        "alan" -> "Alan • bundled offline"
+        "joe" -> "Joe • bundled offline"
+        "john" -> "John • bundled offline"
+        "kathleen" -> "Kathleen • bundled offline"
+        "glados" -> "GLaDOS • bundled offline"
         "android" -> "Android system voice"
         else -> key
     }
 
     private fun selectLocalVoice(key: String, label: String) {
         stopLocalSpeech()
+        if (localTtsLoadedKey != key) closeLocalTts()
         localVoiceKey = key
         prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", key != "android").apply()
-        status.text = "LOCAL • " + label + " • selected"
+        status.text = "VOICE • " + label + " • selected"
         if (key == "android") {
             ensureAndroidTts { showAndroidVoiceChoices(availableEnglishVoices()) }
         } else {
-            Toast.makeText(this, label + " installed • replies will use this voice offline", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, label + " selected • generating a live test with this exact voice", Toast.LENGTH_SHORT).show()
+            speakWithLocalVoice("Hello. " + label.substringBefore(" •") + " is now selected in Red U I.")
         }
     }
 
@@ -709,40 +711,35 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     }
 
     private fun showVoiceChoices(){
-        ensureAndroidTts {
-            val voices = availableEnglishVoices()
-            if (voices.isEmpty()) {
-                AlertDialog.Builder(this)
-                    .setTitle("Red U I • Voice choices")
-                    .setMessage("No offline English Android voices are currently installed. Open Android speech settings to install or enable voices.")
-                    .setPositiveButton("SPEECH SETTINGS"){_,_->try{startActivity(Intent("com.android.settings.TTS_SETTINGS"))}catch(_:Throwable){}}
-                    .setNegativeButton("CLOSE",null).show()
-                return@ensureAndroidTts
-            }
-            val labels = voices.map { v ->
-                val offline = if (v.isNetworkConnectionRequired) "online" else "offline"
-                v.name + " • " + v.locale.toLanguageTag() + " • " + offline
-            }.toTypedArray()
-            val saved = prefs.getString("tts_voice", "") ?: ""
-            val current = voices.indexOfFirst { it.name == saved }.coerceAtLeast(0)
-            AlertDialog.Builder(this)
-                .setTitle("Red U I • Working voice choices")
-                .setSingleChoiceItems(labels,current){d,which->
-                    val v=voices[which]
-                    val voiceResult = tts.setVoice(v)
-                    if (voiceResult == TextToSpeech.ERROR) {
-                        Toast.makeText(this, "That Android voice could not be activated. Choose another installed voice.", Toast.LENGTH_LONG).show()
-                        return@setSingleChoiceItems
-                    }
-                    selectedVoiceName=v.name
-                    localVoiceKey="android"
-                    prefs.edit().putString("tts_voice",v.name).putString("local_voice_key","android").putBoolean("local_voice",false).apply()
-                    status.text="VOICE • "+v.name+" • "+v.locale.toLanguageTag()
-                    d.dismiss()
-                }
-                .setNeutralButton("GET MORE VOICES"){_,_->try{startActivity(Intent("com.android.settings.TTS_SETTINGS"))}catch(_:Throwable){}}
-                .setNegativeButton("CLOSE",null).show()
+        val bundled = listOf(
+            "lessac" to "Lessac • bundled offline",
+            "amy" to "Amy • bundled offline",
+            "cori" to "Cori • bundled offline",
+            "alan" to "Alan • bundled offline",
+            "joe" to "Joe • bundled offline",
+            "john" to "John • bundled offline",
+            "kathleen" to "Kathleen • bundled offline",
+            "glados" to "GLaDOS • bundled offline"
+        )
+        val labels = (bundled.map { it.second } + "Android system voices • phone voices").toTypedArray()
+        val current = bundled.indexOfFirst { it.first == localVoiceKey }.let {
+            if (localVoiceKey == "android") bundled.size else if (it >= 0) it else 0
         }
+        AlertDialog.Builder(this)
+            .setTitle("Red U I • Voice choices")
+            .setMessage("The first eight voices are built into Red U I and do not use your phone's preset voice. Tap one to select it and hear a live test generated by that exact voice.")
+            .setSingleChoiceItems(labels,current){d,which->
+                if (which < bundled.size) {
+                    val (key,label)=bundled[which]
+                    d.dismiss()
+                    selectLocalVoice(key,label)
+                } else {
+                    d.dismiss()
+                    selectLocalVoice("android","Android system voices")
+                }
+            }
+            .setNegativeButton("CLOSE",null)
+            .show()
     }
 
     private fun ensureAndroidTts(onReady: () -> Unit) {
