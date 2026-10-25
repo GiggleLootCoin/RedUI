@@ -435,18 +435,24 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         localTtsLoadedKey = ""
     }
 
-    private fun copyAssetTree(assetPath: String, outDir: File) {
-        if (outDir.exists() && outDir.isFile) outDir.delete()
-        outDir.mkdirs()
+    private fun copyAssetTree(assetPath: String, outFile: File) {
         val children = assets.list(assetPath) ?: emptyArray()
         if (children.isEmpty()) {
+            // Leaf assets are FILES. The old implementation called mkdirs() here
+            // first, accidentally creating a directory named like each file
+            // (for example en_dict), so the bundled Piper engine could never
+            // finish copying espeak-ng-data on Android.
+            outFile.parentFile?.mkdirs()
+            if (outFile.exists() && outFile.isDirectory) outFile.deleteRecursively()
             assets.open(assetPath).use { input ->
-                outDir.outputStream().use { output -> input.copyTo(output) }
+                outFile.outputStream().use { output -> input.copyTo(output) }
             }
             return
         }
+        if (outFile.exists() && outFile.isFile) outFile.delete()
+        outFile.mkdirs()
         for (child in children) {
-            copyAssetTree("$assetPath/$child", File(outDir, child))
+            copyAssetTree("$assetPath/$child", File(outFile, child))
         }
     }
 
