@@ -45,9 +45,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
+import java.util.UUID
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var store: ModelStore
+    private lateinit var chatStore: ChatSessionStore
+    private var currentChatId: String = ""
     private lateinit var spinner: Spinner
     private lateinit var status: TextView
     private lateinit var voiceState: TextView
@@ -117,6 +120,9 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         // Everything that can fail, allocate heavily, or touch disk/network is deferred.
         try {
             store = ModelStore(this)
+            chatStore = ChatSessionStore(this)
+            currentChatId = prefs.getString("current_chat_id", "") ?: ""
+            if (currentChatId.isBlank() || chatStore.load(currentChatId) == null) currentChatId = UUID.randomUUID().toString()
             buildUi()
         } catch (e: Throwable) {
             showStartupError(e)
@@ -126,6 +132,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         window.decorView.post {
             try { applyWallpaper() } catch (_: Throwable) {}
             try { refresh() } catch (_: Throwable) { status.text = "LOCAL • ready" }
+            try { loadCurrentChat() } catch (_: Throwable) {}
 
             // Initialize speech only after the first frame is on screen. The previous
             // build never called initLocalVoiceEngine(), so the bundled Piper voices
@@ -247,6 +254,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             letterSpacing = .12f
         })
         header.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
+        header.addView(button("CHATS"){showSavedChats()},LinearLayout.LayoutParams(dp(82),dp(44)))
         header.addView(button("VOICE"){showVoiceChoices()},LinearLayout.LayoutParams(dp(82),dp(44)))
         header.addView(button("SETTINGS"){showSettings()},LinearLayout.LayoutParams(dp(98),dp(44)))
         content.addView(header)
@@ -391,6 +399,8 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
 
         // Utility buttons
         val toolsRow = LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        toolsRow.addView(button("NEW CHAT"){startNewChat()},LinearLayout.LayoutParams(0,dp(44),1f))
+        toolsRow.addView(Space(this),LinearLayout.LayoutParams(dp(7),1))
         toolsRow.addView(button("AUTO WEB • ON"){Toast.makeText(this,"Red A I searches automatically when a question needs fresh information.",Toast.LENGTH_SHORT).show()},LinearLayout.LayoutParams(0,dp(44),1f))
         toolsRow.addView(Space(this),LinearLayout.LayoutParams(dp(7),1))
         toolsRow.addView(button("PERSONALIZE"){showPersonalize()},LinearLayout.LayoutParams(0,dp(44),1f))
@@ -674,7 +684,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         if(prompt.isEmpty() || generating)return
         if(f==null){status.text="LOCAL • import RedAI.gguf first";return}
         speech?.stopListening(); input.text.clear()
-        msgs.add(ChatMessage("user",prompt));adapter.notifyItemInserted(msgs.lastIndex)
+        msgs.add(ChatMessage("user",prompt));adapter.notifyItemInserted(msgs.lastIndex);saveCurrentChat()
         msgs.add(ChatMessage("assistant",""));val ai=msgs.lastIndex;adapter.notifyItemInserted(ai);rv.scrollToPosition(ai)
         generating=true;if(handsFree||fromVoice)voiceState.text="THINKING • Red A I is replying"
         lifecycleScope.launch(Dispatchers.IO) {
@@ -702,7 +712,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
                 LlamaBridge.generateStream(buildPrompt(prompt),object:GenStream{
                     override fun onDelta(t:String){runOnUiThread{msgs[ai]=msgs[ai].copy(text=msgs[ai].text+t);adapter.notifyItemChanged(ai);rv.scrollToPosition(ai)}}
                     override fun onComplete(){runOnUiThread{
-                        generating=false;status.text="LOCAL • ready • "+f.name
+                        generating=false;saveCurrentChat();status.text="LOCAL • ready • "+f.name
                         if(handsFree)voiceState.text="SPEAKING • you can interrupt"
                         val reply=cleanForSpeech(msgs[ai].text)
                         if(speakReplies)speak(reply) else if(handsFree)startListening()
@@ -803,6 +813,83 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     private fun resumeListening(){if(handsFree&&!generating)handler.postDelayed({startListening()},450)}
 
     private fun deleteSelectedModel(){val f=model?:return;AlertDialog.Builder(this).setTitle("Delete model?").setMessage("Remove "+f.name+" from RedUI? The original file outside RedUI is not affected.").setNegativeButton("CANCEL",null).setPositiveButton("DELETE"){_,_->f.delete();model=null;refresh()}.show()}
+
+    private fun saveCurrentChat() {
+        if (!::chatStore.isInitialized || msgs.isEmpty()) return
+        try {
+            chatStore.save(currentChatId, msgs)
+            prefs.edit().putString("current_chat_id", currentChatId).apply()
+        } catch (_:Throwable) {}
+    }
+
+    private fun loadCurrentChat() {
+        if (!::chatStore.isInitialized) return
+        val saved = chatStore.load(currentChatId) ?: return
+        msgs.clear()
+        msgs.addAll(saved.messages)
+        if (::adapter.isInitialized) {
+            adapter.notifyDataSetChanged()
+            if (msgs.isNotEmpty()) rv.post { rv.scrollToPosition(msgs.lastIndex) }
+        }
+    }
+
+    private fun startNewChat() {
+        if (generating) {
+            Toast.makeText(this,"Wait for the current reply to finish before starting a new chat.",Toast.LENGTH_SHORT).show()
+            return
+        }
+        saveCurrentChat()
+        currentChatId = UUID.randomUUID().toString()
+        prefs.edit().putString("current_chat_id",currentChatId).apply()
+        msgs.clear()
+        attachmentContext.setLength(0)
+        attachmentCount=0
+        if (::attachmentState.isInitialized) attachmentState.text="NO ATTACHMENTS"
+        if (::adapter.isInitialized) adapter.notifyDataSetChanged()
+        status.text="LOCAL • new conversation"
+        input.setText("")
+    }
+
+    private fun showSavedChats() {
+        if (!::chatStore.isInitialized) return
+        val chats=chatStore.all()
+        if(chats.isEmpty()) {
+            AlertDialog.Builder(this).setTitle("Saved chats").setMessage("Your conversations are saved automatically on this phone. Nothing is sent to the cloud by the chat-history system.").setPositiveButton("NEW CHAT"){_,_->startNewChat()}.setNegativeButton("CLOSE",null).show()
+            return
+        }
+        val labels=chats.map { "• " + it.title + "\n  " + chatStore.displayDate(it.updated) + " • " + it.messages.size + " messages" }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Saved chats • " + chats.size)
+            .setItems(labels){_,which->loadSavedChat(chats[which].id)}
+            .setNeutralButton("DELETE ALL"){_,_->confirmDeleteAllChats()}
+            .setPositiveButton("NEW CHAT"){_,_->startNewChat()}
+            .show()
+    }
+
+    private fun loadSavedChat(id:String) {
+        if(generating)return
+        val saved=chatStore.load(id) ?: return
+        currentChatId=saved.id
+        prefs.edit().putString("current_chat_id",currentChatId).apply()
+        msgs.clear();msgs.addAll(saved.messages)
+        adapter.notifyDataSetChanged()
+        if(msgs.isNotEmpty())rv.post{rv.scrollToPosition(msgs.lastIndex)}
+        attachmentContext.setLength(0);attachmentCount=0
+        if(::attachmentState.isInitialized)attachmentState.text="NO ATTACHMENTS"
+        status.text="LOCAL • loaded • " + saved.title
+    }
+
+    private fun confirmDeleteAllChats() {
+        AlertDialog.Builder(this).setTitle("Delete all saved chats?")
+            .setMessage("This permanently removes saved conversations from this phone. It does not delete your GGUF model.")
+            .setNegativeButton("CANCEL",null)
+            .setPositiveButton("DELETE ALL"){_,_->
+                chatStore.deleteAll()
+                currentChatId=UUID.randomUUID().toString()
+                prefs.edit().putString("current_chat_id",currentChatId).apply()
+                msgs.clear();adapter.notifyDataSetChanged()
+                status.text="LOCAL • saved chats deleted"
+            }.show()
+    }
 
     private fun showSettings(){
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(22),dp(4),dp(22),dp(4))}
