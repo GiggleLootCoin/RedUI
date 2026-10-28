@@ -412,7 +412,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         if (saved !in setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados", "android")) saved = "lessac"
         localVoiceKey = saved
         prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", saved != "android").apply()
-        status.text = "LOCAL • ready • bundled offline voices installed"
+        status.text = "LOCAL • ready • RedUI voice: " + localVoiceLabel(saved)
     }
 
     private fun speakerIdFor(key: String): Int = 0
@@ -774,24 +774,40 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             "kathleen" to "Kathleen",
             "glados" to "GLaDOS"
         )
-        val labels = bundled.map { (key,name) ->
-            if (key == localVoiceKey) "✓ $name — BUILT-IN OFFLINE • SELECTED"
-            else "$name — BUILT-IN OFFLINE"
-        }.toTypedArray()
-        val current = bundled.indexOfFirst { it.first == localVoiceKey }.coerceAtLeast(0)
+
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(6), dp(18), dp(6))
+        }
+        box.addView(tv("REDUI VOICES • INCLUDED IN THIS APP", 11f, Color.rgb(240,67,76)).apply {
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = .08f
+            setPadding(0, 0, 0, dp(8))
+        })
+        box.addView(tv("Choose one of RedUI's own offline voices below. These are not Samsung or Android phone voices.", 12f, Color.LTGRAY).apply {
+            setPadding(0, 0, 0, dp(8))
+        })
+
+        bundled.forEach { (key, name) ->
+            val selected = key == localVoiceKey
+            val label = (if (selected) "✓ " else "") + name + " • REDUI OFFLINE VOICE"
+            box.addView(button(label, selected) {
+                selectLocalVoice(key, "$name • RedUI offline voice")
+            }, LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(6) })
+        }
+
+        box.addView(tv("PHONE VOICES • OPTIONAL", 10f, Color.GRAY).apply {
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, dp(8), 0, dp(5))
+        })
+        box.addView(button("USE ANDROID / SAMSUNG PHONE VOICES") {
+            selectLocalVoice("android", "Android system voices")
+        }, LinearLayout.LayoutParams(-1, dp(48)))
 
         AlertDialog.Builder(this)
-            .setTitle("Red U I • BUNDLED VOICES")
-            .setMessage("These 8 voices are physically included in Red U I. They run locally from the bundled sherpa-onnx models. They do NOT use Samsung or Android Text-to-Speech.")
-            .setSingleChoiceItems(labels,current){d,which->
-                val (key,name)=bundled[which]
-                d.dismiss()
-                selectLocalVoice(key,"$name • bundled offline")
-            }
-            .setNeutralButton("ANDROID PHONE VOICES") { _, _ ->
-                selectLocalVoice("android","Android system voices")
-            }
-            .setNegativeButton("CLOSE",null)
+            .setTitle("RedUI • Voice Choices")
+            .setView(box)
+            .setNegativeButton("CLOSE", null)
             .show()
     }
 
