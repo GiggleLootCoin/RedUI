@@ -12,6 +12,7 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
@@ -55,6 +56,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var wallpaper: ImageView
     private lateinit var tts: TextToSpeech
     private var speech: SpeechRecognizer? = null
+    private var speechUsesOnDevice = false
+    private var speechRetryCount = 0
     private val handler = Handler(Looper.getMainLooper())
     private val msgs = mutableListOf<ChatMessage>()
     private var model: File? = null
@@ -511,14 +514,14 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     }
 
     private fun localVoiceLabel(key:String):String = when(key) {
-        "lessac" -> "Lessac • bundled offline"
-        "amy" -> "Amy • bundled offline"
-        "cori" -> "Cori • bundled offline"
-        "alan" -> "Alan • bundled offline"
-        "joe" -> "Joe • bundled offline"
-        "john" -> "John • bundled offline"
-        "kathleen" -> "Kathleen • bundled offline"
-        "glados" -> "GLaDOS • bundled offline"
+        "lessac" -> "RedUI Clear • Lessac"
+        "amy" -> "RedUI Warm • Amy"
+        "cori" -> "RedUI British • Cori"
+        "alan" -> "RedUI British Deep • Alan"
+        "joe" -> "RedUI Smooth • Joe"
+        "john" -> "RedUI Strong • John"
+        "kathleen" -> "RedUI Gentle • Kathleen"
+        "glados" -> "GLaDOS • Classic AI"
         "android" -> "Android system voice"
         else -> key
     }
@@ -547,37 +550,72 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     }
 
     private fun createSpeechRecognizer() {
-        speech?.destroy(); speech = null
-        if (SpeechRecognizer.isRecognitionAvailable(this)) {
-            speech = SpeechRecognizer.createSpeechRecognizer(this)
+        try { speech?.cancel() } catch (_: Throwable) {}
+        try { speech?.destroy() } catch (_: Throwable) {}
+        speech = null
+        speechUsesOnDevice = false
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                speech = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+                speechUsesOnDevice = true
+            } else {
+                speech = SpeechRecognizer.createSpeechRecognizer(this)
+            }
             speech?.setRecognitionListener(recognitionListener)
+        } catch (_: Throwable) {
+            speechUsesOnDevice = false
+            try {
+                speech = SpeechRecognizer.createSpeechRecognizer(this)
+                speech?.setRecognitionListener(recognitionListener)
+            } catch (_: Throwable) {
+                speech = null
+            }
         }
     }
 
     private fun toggleHandsFree() {
         if (handsFree) {
-            handsFree=false; speech?.stopListening(); if(::tts.isInitialized) tts.stop()
+            handsFree=false
+            try { speech?.cancel() } catch (_: Throwable) {}
+            if(::tts.isInitialized) tts.stop()
+            stopLocalSpeech()
+            handler.removeCallbacksAndMessages(null)
             voiceState.text="HANDS-FREE OFF"; status.text="LOCAL • ready"; return
         }
         if (ContextCompat.checkSelfPermission(this,Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.RECORD_AUDIO),9001); return
         }
-        if (speech==null) try { if (SpeechRecognizer.isRecognitionAvailable(this)) createSpeechRecognizer() } catch (_: Throwable) {}
-        if (speech==null) { Toast.makeText(this,"Speech recognition is not available on this phone",Toast.LENGTH_LONG).show(); return }
+        if (speech==null) createSpeechRecognizer()
+        if (speech==null) {
+            Toast.makeText(this,"Speech recognition is not available on this phone",Toast.LENGTH_LONG).show()
+            return
+        }
         if (model==null) { status.text="LOCAL • import RedAI.gguf first"; return }
-        handsFree=true; speakReplies=true; startListening()
+        handsFree=true; speakReplies=true; speechRetryCount=0
+        status.text = if (speechUsesOnDevice) "MIC • on-device speech recognition ready" else "MIC • system speech recognition ready"
+        startListening()
     }
 
     override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,results:IntArray) {
         super.onRequestPermissionsResult(requestCode,permissions,results)
-        if(requestCode==9001 && results.firstOrNull()==PackageManager.PERMISSION_GRANTED && model!=null) { handsFree=true; speakReplies=true; startListening() }
+        if(requestCode==9001 && results.firstOrNull()==PackageManager.PERMISSION_GRANTED && model!=null) {
+            if (speech==null) createSpeechRecognizer()
+            if (speech!=null) { handsFree=true; speakReplies=true; speechRetryCount=0; startListening() }
+        }
     }
 
     private fun startListening() {
-        if(!handsFree || generating || speech==null) return
+        if(!handsFree || generating) return
+        if (speech == null) createSpeechRecognizer()
+        val recognizer = speech ?: run {
+            voiceState.text = "MIC ERROR • speech recognition unavailable"
+            return
+        }
         handler.removeCallbacksAndMessages(null)
         handler.postDelayed({
-            if(!handsFree || generating)return@postDelayed
+            if(!handsFree || generating) return@postDelayed
             try {
                 if(::tts.isInitialized) tts.stop()
                 val i=Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -585,28 +623,48 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE,Locale.getDefault())
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,1)
-                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE,false)
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE,speechUsesOnDevice)
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,700L)
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,1200L)
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,900L)
                 }
-                voiceState.text="LISTENING • speak naturally"; speech?.startListening(i)
-            } catch(_:Throwable) { voiceState.text="MIC ERROR • tap TALK LIVE again" }
+                voiceState.text = if (speechUsesOnDevice) "LISTENING • on-device • speak naturally" else "LISTENING • speak naturally"
+                recognizer.startListening(i)
+            } catch (_: Throwable) {
+                if (handsFree) {
+                    speechRetryCount=(speechRetryCount+1).coerceAtMost(4)
+                    voiceState.text="MIC ERROR • retrying…"
+                    try { recognizer.cancel() } catch (_: Throwable) {}
+                    handler.postDelayed({if(handsFree)startListening()},(500L*speechRetryCount).coerceAtMost(2000L))
+                }
+            }
         },350)
     }
 
     private val recognitionListener=object:RecognitionListener {
-        override fun onReadyForSpeech(p:Bundle?){if(handsFree)voiceState.text="LISTENING • go ahead"}
-        override fun onBeginningOfSpeech(){if(handsFree){if(::tts.isInitialized)tts.stop();voiceState.text="LISTENING • hearing you"}}
+        override fun onReadyForSpeech(p:Bundle?){
+            if(handsFree){speechRetryCount=0;voiceState.text=if(speechUsesOnDevice)"LISTENING • on-device • go ahead" else "LISTENING • go ahead"}
+        }
+        override fun onBeginningOfSpeech(){
+            if(handsFree){speechRetryCount=0;if(::tts.isInitialized)tts.stop();voiceState.text="LISTENING • hearing you"}
+        }
         override fun onRmsChanged(v:Float){}
         override fun onBufferReceived(b:ByteArray?){}
         override fun onEndOfSpeech(){if(handsFree)voiceState.text="THINKING • sending"}
-        override fun onError(e:Int){if(handsFree){createSpeechRecognizer();handler.postDelayed({startListening()},700)}}
+        override fun onError(e:Int){
+            if(!handsFree)return
+            speechRetryCount=(speechRetryCount+1).coerceAtMost(4)
+            createSpeechRecognizer()
+            handler.postDelayed({if(handsFree)startListening()},(650L*speechRetryCount).coerceAtMost(2600L))
+        }
         override fun onResults(r:Bundle?) {
             val text=r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim().orEmpty()
-            if(handsFree && text.isNotBlank()){input.setText(text);send(true)} else if(handsFree)startListening()
+            if(handsFree && text.isNotBlank()){speechRetryCount=0;input.setText(text);send(true)} else if(handsFree)startListening()
         }
-        override fun onPartialResults(r:Bundle?){val text=r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty();if(handsFree&&text.isNotBlank())input.setText(text)}
+        override fun onPartialResults(r:Bundle?){
+            val text=r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+            if(handsFree&&text.isNotBlank())input.setText(text)
+        }
         override fun onEvent(t:Int,p:Bundle?){}
     }
 
@@ -763,52 +821,48 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             .distinctBy { it.name }
     }
 
+    private data class VoiceChoice(val key: String, val displayName: String, val technicalName: String)
+
     private fun showVoiceChoices(){
         val bundled = listOf(
-            "lessac" to "Lessac",
-            "amy" to "Amy",
-            "cori" to "Cori",
-            "alan" to "Alan",
-            "joe" to "Joe",
-            "john" to "John",
-            "kathleen" to "Kathleen",
-            "glados" to "GLaDOS"
+            VoiceChoice("lessac", "RedUI Clear", "Lessac • US English"),
+            VoiceChoice("amy", "RedUI Warm", "Amy • US English"),
+            VoiceChoice("cori", "RedUI British", "Cori • UK English"),
+            VoiceChoice("alan", "RedUI British Deep", "Alan • UK English"),
+            VoiceChoice("joe", "RedUI Smooth", "Joe • US English"),
+            VoiceChoice("john", "RedUI Strong", "John • US English"),
+            VoiceChoice("kathleen", "RedUI Gentle", "Kathleen • US English"),
+            VoiceChoice("glados", "GLaDOS", "Classic AI voice • US English")
         )
-
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(6), dp(18), dp(6))
         }
-        box.addView(tv("REDUI VOICES • INCLUDED IN THIS APP", 11f, Color.rgb(240,67,76)).apply {
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = .08f
-            setPadding(0, 0, 0, dp(8))
+        box.addView(tv("REDUI VOICES • BUILT INTO THIS APP",11f,Color.rgb(240,67,76)).apply {
+            typeface=Typeface.DEFAULT_BOLD; letterSpacing=.08f; setPadding(0,0,0,dp(8))
         })
-        box.addView(tv("Choose one of RedUI's own offline voices below. These are not Samsung or Android phone voices.", 12f, Color.LTGRAY).apply {
-            setPadding(0, 0, 0, dp(8))
+        box.addView(tv("These voices are physically included in RedUI and work offline. No Samsung voice package is required.",12f,Color.LTGRAY).apply {
+            setPadding(0,0,0,dp(10))
         })
-
-        bundled.forEach { (key, name) ->
-            val selected = key == localVoiceKey
-            val label = (if (selected) "✓ " else "") + name + " • REDUI OFFLINE VOICE"
-            box.addView(button(label, selected) {
-                selectLocalVoice(key, "$name • RedUI offline voice")
-            }, LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(6) })
+        bundled.forEach { choice ->
+            val selected = choice.key == localVoiceKey
+            val row = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+            row.addView(button((if(selected)"✓ " else "")+choice.displayName,selected) {
+                selectLocalVoice(choice.key,choice.displayName+" • "+choice.technicalName)
+            },LinearLayout.LayoutParams(0,dp(48),1f).apply{rightMargin=dp(6)})
+            row.addView(button("PREVIEW"){playBundledVoiceTest(choice.key)},LinearLayout.LayoutParams(dp(92),dp(48)))
+            box.addView(row,LinearLayout.LayoutParams(-1,dp(48)).apply{bottomMargin=dp(2)})
+            box.addView(tv(choice.technicalName+" • INCLUDED OFFLINE",9f,Color.rgb(145,145,152)).apply {
+                setPadding(dp(5),0,0,dp(5))
+            })
         }
-
-        box.addView(tv("PHONE VOICES • OPTIONAL", 10f, Color.GRAY).apply {
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, dp(8), 0, dp(5))
+        box.addView(tv("PHONE VOICES • OPTIONAL",10f,Color.GRAY).apply {
+            typeface=Typeface.DEFAULT_BOLD; setPadding(0,dp(8),0,dp(5))
         })
-        box.addView(button("USE ANDROID / SAMSUNG PHONE VOICES") {
-            selectLocalVoice("android", "Android system voices")
-        }, LinearLayout.LayoutParams(-1, dp(48)))
-
-        AlertDialog.Builder(this)
-            .setTitle("RedUI • Voice Choices")
-            .setView(box)
-            .setNegativeButton("CLOSE", null)
-            .show()
+        box.addView(button("USE ANDROID / SAMSUNG PHONE VOICES"){
+            selectLocalVoice("android","Android system voices")
+        },LinearLayout.LayoutParams(-1,dp(48)))
+        AlertDialog.Builder(this).setTitle("RedUI • Voice Choices").setView(box).setNegativeButton("CLOSE",null).show()
     }
 
     private fun ensureAndroidTts(onReady: () -> Unit) {
