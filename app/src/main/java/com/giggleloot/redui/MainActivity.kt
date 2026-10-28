@@ -950,7 +950,14 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         return question && factual && q.length >= 18
     }
 
-    private fun isNetworkAvailable():Boolean {\n        return try {\n            val cm=getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager\n            cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)==true\n        } catch (_:Throwable) { false }\n    }\n\n    private fun fetchWebText(query:String):String {
+    private fun isNetworkAvailable():Boolean {
+        return try {
+            val cm=getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)==true
+        } catch (_:Throwable) { false }
+    }
+
+    private fun fetchWebText(query:String):String {
         return try {
             val encoded=java.net.URLEncoder.encode(query,"UTF-8")
             val conn=java.net.URL("https://html.duckduckgo.com/html/?q="+encoded).openConnection() as java.net.HttpURLConnection
