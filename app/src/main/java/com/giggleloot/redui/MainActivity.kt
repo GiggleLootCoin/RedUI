@@ -471,10 +471,18 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         val assetDir = "voices/$key"
         val dataDir = File(filesDir, "redui-tts/$key/espeak-ng-data")
         val marker = File(dataDir, ".ready")
-        if (!marker.exists()) {
+        // Never trust the marker alone: older broken builds could leave a .ready
+        // marker beside directories that were accidentally created in place of
+        // real espeak-ng-data files. Validate a known dictionary file too.
+        val knownDataFile = File(dataDir, "en_dict")
+        val voiceDataValid = marker.isFile && knownDataFile.isFile && knownDataFile.length() > 0L
+        if (!voiceDataValid) {
             dataDir.parentFile?.mkdirs()
             if (dataDir.exists()) dataDir.deleteRecursively()
             copyAssetTree("$assetDir/espeak-ng-data", dataDir)
+            if (!knownDataFile.isFile || knownDataFile.length() == 0L) {
+                throw IllegalStateException("Bundled voice data extraction failed: $key")
+            }
             marker.writeText("RedUI offline voice data ready")
         }
 
