@@ -141,11 +141,6 @@ jobs:
           ls -lh app/src/main/assets/testvoices
           rm -rf /tmp/redui-tts
 
-      - name: Verify bundled voice models are in APK
-        run: |
-          APK_DIR=app/build/outputs/apk/release
-          test -n "$(find "$APK_DIR" -type f -name "app-arm64-v8a-release.apk" -print -quit)" || true
-
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
@@ -168,6 +163,25 @@ jobs:
             unzip -l "$APK" | grep -q "$MODEL"
           done
           unzip -l "$APK" | grep -q 'AndroidManifest.xml'
+
+      - name: Verify release APK is installable and contains every bundled voice
+        run: |
+          APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
+          test -n "$APK"
+          echo "APK: $APK"
+          ls -lh "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          unzip -l "$APK" | grep -q 'assets/testvoices/lessac.wav'
+          for VOICE in lessac amy cori alan joe john kathleen glados; do
+            unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
+            unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
+            unzip -l "$APK" | grep -q "assets/voices/$VOICE/espeak-ng-data/"
+            unzip -l "$APK" | grep -q "assets/testvoices/$VOICE.wav"
+          done
+          for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-medium.onnx en_GB-alan-medium.onnx en_US-joe-medium.onnx en_US-john-medium.onnx en_US-kathleen-low.onnx en_US-glados.onnx; do
+            unzip -l "$APK" | grep -q "$MODEL"
+          done
+          echo "All bundled offline voice models, phoneme data, previews, and APK signature verified."
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
