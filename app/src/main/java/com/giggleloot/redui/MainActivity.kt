@@ -78,8 +78,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var localPlayer: MediaPlayer? = null
     private var localTts: OfflineTts? = null
     private var localTtsLoadedKey = ""
-    @Volatile private var downloadingKittenPack = false
-    private var loadedModelPath = ""
+        private var loadedModelPath = ""
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
     private val attachmentContext = StringBuilder()
     private var attachmentCount = 0
@@ -255,7 +254,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             setPadding(dp(11),0,dp(6),0)
         }
         brand.addView(TextView(this).apply {
-            text = "Red U I"
+            text = "RedUI"
             textSize = 28f
             typeface = Typeface.create("sans-serif-black",Typeface.BOLD)
             setTextColor(Color.WHITE)
@@ -497,12 +496,19 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         if (localTts != null && localTtsLoadedKey == cacheKey) return localTts
         closeLocalTts()
         if (key.startsWith("kitten_")) {
-            val packDir = File(filesDir, "voice-packs/kitten-mini")
+            // The Kitten Mini neural voices are bundled in the APK. Copy once
+            // into app-private storage because sherpa-onnx needs ordinary file paths.
+            val packDir = File(filesDir, "redui-tts/kitten-mini")
             val modelFile = File(packDir, "model.onnx")
             val voicesFile = File(packDir, "voices.bin")
             val tokensFile = File(packDir, "tokens.txt")
             if (!modelFile.isFile || !voicesFile.isFile || !tokensFile.isFile) {
-                throw IllegalStateException("Kitten Mini voice pack is not downloaded yet.")
+                if (packDir.exists()) packDir.deleteRecursively()
+                copyAssetTree("kitten-mini", packDir)
+            }
+            if (!modelFile.isFile || !voicesFile.isFile || !tokensFile.isFile ||
+                modelFile.length() == 0L || voicesFile.length() == 0L || tokensFile.length() == 0L) {
+                throw IllegalStateException("Bundled Kitten Mini voices could not be installed from the app.")
             }
             val dataDir = File(filesDir, "redui-tts/shared/espeak-ng-data")
             val marker = File(dataDir, ".ready")
@@ -588,80 +594,6 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         return engine
     }
 
-    private fun isKittenPackInstalled(): Boolean {
-        val dir = File(filesDir, "voice-packs/kitten-mini")
-        return File(dir, "model.onnx").isFile && File(dir, "voices.bin").isFile && File(dir, "tokens.txt").isFile
-    }
-
-    private fun downloadKittenVoicePack(onReady: (() -> Unit)? = null) {
-        if (isKittenPackInstalled()) { onReady?.invoke(); return }
-        if (downloadingKittenPack) {
-            Toast.makeText(this, "Kitten Mini voice pack is already downloading.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (!isNetworkAvailable()) {
-            Toast.makeText(this, "Connect to Wi-Fi once to download the 68 MB voice pack. It works offline afterwards.", Toast.LENGTH_LONG).show()
-            status.text = "VOICE • internet needed for first-time Kitten download"
-            return
-        }
-        downloadingKittenPack = true
-        status.text = "VOICE • downloading Kitten Mini • about 68 MB…"
-        lifecycleScope.launch(Dispatchers.IO) {
-            val archive = File(cacheDir, "KittenMiniVoices.zip")
-            val target = File(filesDir, "voice-packs/kitten-mini")
-            val staging = File(filesDir, "voice-packs/kitten-mini-staging")
-            try {
-                val connection = java.net.URL("https://github.com/GiggleLootCoin/RedUI/releases/latest/download/KittenMiniVoices.zip")
-                    .openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout = 20000
-                connection.readTimeout = 90000
-                connection.instanceFollowRedirects = true
-                connection.setRequestProperty("User-Agent", "RedUI-Android")
-                connection.inputStream.use { input -> archive.outputStream().use { output -> input.copyTo(output) } }
-                if (archive.length() < 10_000_000L) throw IllegalStateException("Voice pack download was incomplete.")
-                if (staging.exists()) staging.deleteRecursively()
-                staging.mkdirs()
-                java.util.zip.ZipInputStream(archive.inputStream().buffered()).use { zip ->
-                    while (true) {
-                        val entry = zip.nextEntry ?: break
-                        if (!entry.isDirectory) {
-                            val output = File(staging, entry.name)
-                            if (!output.canonicalPath.startsWith(staging.canonicalPath + File.separator)) {
-                                throw SecurityException("Unsafe voice-pack entry.")
-                            }
-                            output.parentFile?.mkdirs()
-                            output.outputStream().use { out -> zip.copyTo(out) }
-                        }
-                        zip.closeEntry()
-                    }
-                }
-                if (!File(staging, "model.onnx").isFile ||
-                    !File(staging, "voices.bin").isFile ||
-                    !File(staging, "tokens.txt").isFile) {
-                    throw IllegalStateException("Downloaded voice pack failed its file checks.")
-                }
-                if (target.exists()) target.deleteRecursively()
-                target.parentFile?.mkdirs()
-                if (!staging.renameTo(target)) throw IllegalStateException("Could not install voice pack.")
-                archive.delete()
-                withContext(Dispatchers.Main) {
-                    downloadingKittenPack = false
-                    status.text = "VOICE • Kitten Mini installed • eight voices available offline"
-                    Toast.makeText(this@MainActivity, "Kitten Mini installed. These eight voices now work offline.", Toast.LENGTH_LONG).show()
-                    onReady?.invoke()
-                }
-            } catch (e: Throwable) {
-                archive.delete()
-                staging.deleteRecursively()
-                withContext(Dispatchers.Main) {
-                    downloadingKittenPack = false
-                    status.text = "VOICE • Kitten Mini download failed"
-                    Toast.makeText(this@MainActivity, e.message ?: "Could not download the voice pack.", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
-
     private fun localVoiceLabel(key:String):String = when(key) {
         "lessac" -> "RedUI Clear • Lessac"
         "amy" -> "RedUI Warm • Amy"
@@ -696,14 +628,6 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             return
         }
 
-        if (key.startsWith("kitten_") && !isKittenPackInstalled()) {
-            status.text = "VOICE • downloading optional Kitten Mini voice pack…"
-            downloadKittenVoicePack {
-                status.text = "VOICE • $label • ready offline"
-                speakWithLocalVoice("Hello. " + label.substringBefore(" •") + " is now selected in Red U I.")
-            }
-            return
-        }
         status.text = "VOICE • $label • loading neural voice…"
         Toast.makeText(this, "$label selected • testing the actual reply voice", Toast.LENGTH_SHORT).show()
         speakWithLocalVoice("Hello. " + label.substringBefore(" •") + " is now selected in Red U I.")
@@ -1117,12 +1041,9 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         box.addView(tv("NATURAL VOICE COLLECTION • KITTEN MINI",10f,Color.rgb(240,67,76)).apply {
             typeface=Typeface.DEFAULT_BOLD; setPadding(0,dp(12),0,dp(5))
         })
-        box.addView(tv("Eight additional neural voices by KittenML: Jasper, Bella, Bruno, Luna, Hugo, Rosie, Leo and Kiki. Four female and four male. One free 68 MB download; after installation they work offline. Apache-2.0 model.",12f,Color.LTGRAY).apply {
+        box.addView(tv("Eight additional neural voices by KittenML: Jasper, Bella, Bruno, Luna, Hugo, Rosie, Leo and Kiki. All eight are included in this app and work offline. Apache-2.0 model.",12f,Color.LTGRAY).apply {
             setPadding(0,0,0,dp(8))
         })
-        box.addView(button(if (isKittenPackInstalled()) "KITTEN MINI • INSTALLED OFFLINE" else "DOWNLOAD KITTEN MINI • 68 MB", !isKittenPackInstalled()) {
-            downloadKittenVoicePack()
-        },LinearLayout.LayoutParams(-1,dp(48)).apply{bottomMargin=dp(8)})
         kitten.forEach { choice ->
             val selected = choice.key == localVoiceKey
             val row = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
