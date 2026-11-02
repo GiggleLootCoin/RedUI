@@ -733,10 +733,11 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                     try { LlamaBridge.initMtp(f.absolutePath, 3) } catch (_: Throwable) {}
                 }
                 withContext(Dispatchers.Main){status.text="LOCAL • generating • "+f.name}
+                val rawReply = StringBuilder()
                 LlamaBridge.generateStream(buildPrompt(prompt),object:GenStream{
-                    override fun onDelta(t:String){runOnUiThread{msgs[ai]=msgs[ai].copy(text=msgs[ai].text+t);adapter.notifyItemChanged(ai);rv.scrollToPosition(ai)}}
+                    override fun onDelta(t:String){runOnUiThread{rawReply.append(t);msgs[ai]=msgs[ai].copy(text=cleanForDisplay(rawReply.toString()));adapter.notifyItemChanged(ai);rv.scrollToPosition(ai)}}
                     override fun onComplete(){runOnUiThread{
-                        generating=false;saveCurrentChat();status.text="LOCAL • ready • "+f.name
+                        generating=false;msgs[ai]=msgs[ai].copy(text=cleanForDisplay(rawReply.toString()));saveCurrentChat();status.text="LOCAL • ready • "+f.name
                         if(handsFree)voiceState.text="SPEAKING • you can interrupt"
                         val reply=cleanForSpeech(msgs[ai].text)
                         if(speakReplies)speak(reply) else if(handsFree)startListening()
@@ -802,7 +803,14 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             }
     }
 
-    private fun cleanForSpeech(s:String)=s.replace(Regex("<think>[\\s\\S]*?</think>"),"").replace(Regex("<\\|[^>]+\\|>"),"").trim()
+    private fun cleanForDisplay(s: String): String {
+        return s.replace(Regex("(?s)<think>.*?(</think>|$)"), "")
+            .replace(Regex("<\\|[^>]+\\|>"), "")
+            .replace(Regex("(?s)<[^>]*$"), "")
+            .trim()
+    }
+
+    private fun cleanForSpeech(s: String) = cleanForDisplay(s)
     private fun speak(s:String){
         if(s.isBlank()){if(handsFree)startListening();return}
         val clean = cleanForSpeech(s)
@@ -1308,18 +1316,28 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         AlertDialog.Builder(this).setTitle("RedUI • Web Search").setView(q).setNegativeButton("CLOSE",null).setPositiveButton("SEARCH"){_,_->runWebSearch(q.text.toString().trim())}.show()
     }
 
-    private fun runWebSearch(query:String){
-        if(query.isBlank())return
-        status.text="WEB • searching…"
-        lifecycleScope.launch(Dispatchers.IO){
-            try{
-                val encoded=java.net.URLEncoder.encode(query,"UTF-8")
-                val conn=java.net.URL("https://html.duckduckgo.com/html/?q="+encoded).openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout=8000;conn.readTimeout=10000;conn.setRequestProperty("User-Agent","Mozilla/5.0 RedUI")
-                val html=conn.inputStream.bufferedReader().use{it.readText()};conn.disconnect()
-                val text=android.text.Html.fromHtml(html.replace(Regex("(?is)<script.*?</script>"),"").replace(Regex("(?is)<style.*?</style>"),"").replace(Regex("(?is)<[^>]+>")," ")).toString().replace(Regex("\\s+")," ").trim()
-                withContext(Dispatchers.Main){webContext=text.take(12000);status.text="WEB • results ready • context attached";AlertDialog.Builder(this@MainActivity).setTitle("Web results • "+query).setMessage(if(text.length>9000)text.take(9000)+"…" else text).setPositiveButton("OPEN IN BRAVE"){_,_->openWebSearchInBrowser(query)}.setNegativeButton("DONE",null).show()}
-            }catch(_:Throwable){withContext(Dispatchers.Main){status.text="WEB • browser fallback";AlertDialog.Builder(this@MainActivity).setTitle("Web search").setMessage("The in-app search service did not return results. You can continue the same search in Brave.").setPositiveButton("OPEN IN BRAVE"){_,_->openWebSearchInBrowser(query)}.setNegativeButton("CLOSE",null).show()}}
+    private fun runWebSearch(query: String) {
+        if (query.isBlank()) return
+        status.text = "WEB • searching for fresh sources…"
+        lifecycleScope.launch(Dispatchers.IO) {
+            val results = fetchWebText(query)
+            withContext(Dispatchers.Main) {
+                if (results.isBlank()) {
+                    webContext = ""
+                    status.text = "WEB • no results returned"
+                    AlertDialog.Builder(this@MainActivity).setTitle("Web search")
+                        .setMessage("The search service did not return readable results. You can open the same search in Brave.")
+                        .setPositiveButton("OPEN IN BRAVE") { _, _ -> openWebSearchInBrowser(query) }
+                        .setNegativeButton("CLOSE", null).show()
+                } else {
+                    webContext = results.take(12000)
+                    status.text = "WEB • sources retrieved • context attached to chat"
+                    AlertDialog.Builder(this@MainActivity).setTitle("Web results • " + query)
+                        .setMessage(results.take(9000))
+                        .setPositiveButton("OPEN IN BRAVE") { _, _ -> openWebSearchInBrowser(query) }
+                        .setNegativeButton("DONE", null).show()
+                }
+            }
         }
     }
 
