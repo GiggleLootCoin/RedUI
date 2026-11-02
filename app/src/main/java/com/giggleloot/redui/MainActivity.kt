@@ -104,6 +104,7 @@ RedAI runs locally in RedUI with a selected GGUF. The app may supply web results
 Use natural, clear language. Be warm without being sycophantic, intellectually curious without being credulous, and confident only when evidence justifies it.
 \n/no_think\n
 
+    """.trimIndent()
     private val pickModel = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
