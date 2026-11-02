@@ -3,45 +3,13 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
     <path android:fillColor="#050505" android:pathData="M0,0h108v108h-108z"/>
-
-    <!-- Premium red frame -->
     <path android:fillColor="#E51B23"
         android:pathData="M20,6H88C96.837,6 102,11.163 102,20V88C102,96.837 96.837,102 88,102H20C11.163,102 6,96.837 6,88V20C6,11.163 11.163,6 20,6Z"/>
-
-    <!-- Black center -->
-    <path android:fillColor="#070707"
+    <path android:fillColor="#080808"
         android:pathData="M20,13H88C93.523,13 95,14.477 95,20V88C95,93.523 93.523,95 88,95H20C14.477,95 13,93.523 13,88V20C13,14.477 14.477,13 20,13Z"/>
-
-    <!-- RED: deliberately geometric and unmistakable -->
-    <!-- R -->
+    <!-- One clear R monogram; the adjacent wordmark spells RedUI. -->
     <path android:fillColor="#FFFFFF"
-        android:pathData="M18,25H31C37.6,25 41,28.1 41,33.5C41,37.2 39.2,39.7 35.9,40.8L42.5,50H35.4L29.8,42H25V50H18ZM25,31V36.5H30.2C32.8,36.5 34,35.5 34,33.7C34,31.9 32.8,31 30.2,31Z"/>
-
-    <!-- E -->
-    <path android:fillColor="#FFFFFF"
-        android:pathData="M43,25H62V31H50V34.5H61V40H50V44H62V50H43Z"/>
-
-    <!-- D -->
-    <path android:fillColor="#FFFFFF"
-        android:pathData="M65,25H74C82.3,25 87,29.5 87,37.5C87,45.5 82.3,50 74,50H65ZM72,31V44H74C77.9,44 80,41.9 80,37.5C80,33.1 77.9,31 74,31Z"/>
-
-    <!-- UI separator -->
-    <path android:fillColor="#E51B23" android:pathData="M18,56H90V58H18Z"/>
-
-    <!-- U -->
-    <path android:fillColor="#FFFFFF"
-        android:pathData="M25,63H32V77.5C32,80.4 33.5,82 36,82C38.5,82 40,80.4 40,77.5V63H47V77.8C47,85.8 43.2,90 36,90C28.8,90 25,85.8 25,77.8Z"/>
-
-    <!-- I -->
-    <path android:fillColor="#FFFFFF"
-        android:pathData="M54,63H61V90H54Z"/>
-
-    <!-- premium accent -->
-    <path android:fillColor="#E51B23"
-        android:pathData="M67,63H74V90H67Z"/>
-
-    <!-- tiny RedUI signature bar -->
-    <path android:fillColor="#FFFFFF" android:pathData="M79,63H87V90H79Z"/>
+        android:pathData="M31,25H59C72,25 79,31 79,42C79,50 75,55 67,58L82,83H64L52,62H47V83H31ZM47,39V49H58C62,49 64,47 64,44C64,41 62,39 58,39Z"/>
+    <path android:fillColor="#E51B23" android:pathData="M31,89H77V92H31Z"/>
 </vector>
