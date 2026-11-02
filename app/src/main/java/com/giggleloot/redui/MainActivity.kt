@@ -483,7 +483,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         // by sherpa-onnx's own TTS engine and avoids treating an APK asset path as
         // a normal filesystem path.
         val assetDir = "voices/$key"
-        val dataDir = File(filesDir, "redui-tts/$key/espeak-ng-data")
+        val dataDir = File(filesDir, "redui-tts/shared/espeak-ng-data")
         val marker = File(dataDir, ".ready")
         // Never trust the marker alone: older broken builds could leave a .ready
         // marker beside directories that were accidentally created in place of
@@ -493,7 +493,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         if (!voiceDataValid) {
             dataDir.parentFile?.mkdirs()
             if (dataDir.exists()) dataDir.deleteRecursively()
-            copyAssetTree("$assetDir/espeak-ng-data", dataDir)
+            copyAssetTree("espeak-ng-data", dataDir)
             if (!knownDataFile.isFile || knownDataFile.length() == 0L) {
                 throw IllegalStateException("Bundled voice data extraction failed: $key")
             }
