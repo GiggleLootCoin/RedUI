@@ -670,14 +670,14 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         "john" -> "RedUI Strong • John"
         "kathleen" -> "RedUI Gentle • Kathleen"
         "glados" -> "GLaDOS • Classic AI"
-        "kitten_0" -> "Atlas • natural male"
-        "kitten_1" -> "Ruby • natural female"
-        "kitten_2" -> "Miles • natural male"
-        "kitten_3" -> "Violet • natural female"
-        "kitten_4" -> "Theo • natural male"
-        "kitten_5" -> "Sage • natural female"
+        "kitten_0" -> "Jasper • natural male"
+        "kitten_1" -> "Bella • natural female"
+        "kitten_2" -> "Bruno • natural male"
+        "kitten_3" -> "Luna • natural female"
+        "kitten_4" -> "Hugo • natural male"
+        "kitten_5" -> "Rosie • natural female"
         "kitten_6" -> "Leo • natural male"
-        "kitten_7" -> "Luna • natural female"
+        "kitten_7" -> "Kiki • natural female"
         "android" -> "Android system voice"
         else -> key
     }
@@ -1081,14 +1081,14 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             VoiceChoice("glados", "GLaDOS", "Character voice • Piper")
         )
         val kitten = listOf(
-            VoiceChoice("kitten_0", "Atlas", "Male • Kitten Mini • Voice 1"),
-            VoiceChoice("kitten_1", "Ruby", "Female • Kitten Mini • Voice 2"),
-            VoiceChoice("kitten_2", "Miles", "Male • Kitten Mini • Voice 3"),
-            VoiceChoice("kitten_3", "Violet", "Female • Kitten Mini • Voice 4"),
-            VoiceChoice("kitten_4", "Theo", "Male • Kitten Mini • Voice 5"),
-            VoiceChoice("kitten_5", "Sage", "Female • Kitten Mini • Voice 6"),
+            VoiceChoice("kitten_0", "Jasper", "Male • Kitten Mini • Voice 1"),
+            VoiceChoice("kitten_1", "Bella", "Female • Kitten Mini • Voice 2"),
+            VoiceChoice("kitten_2", "Bruno", "Male • Kitten Mini • Voice 3"),
+            VoiceChoice("kitten_3", "Luna", "Female • Kitten Mini • Voice 4"),
+            VoiceChoice("kitten_4", "Hugo", "Male • Kitten Mini • Voice 5"),
+            VoiceChoice("kitten_5", "Rosie", "Female • Kitten Mini • Voice 6"),
             VoiceChoice("kitten_6", "Leo", "Male • Kitten Mini • Voice 7"),
-            VoiceChoice("kitten_7", "Luna", "Female • Kitten Mini • Voice 8")
+            VoiceChoice("kitten_7", "Kiki", "Female • Kitten Mini • Voice 8")
         )
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1115,7 +1115,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         box.addView(tv("NATURAL VOICE COLLECTION • KITTEN MINI",10f,Color.rgb(240,67,76)).apply {
             typeface=Typeface.DEFAULT_BOLD; setPadding(0,dp(12),0,dp(5))
         })
-        box.addView(tv("Eight additional neural voices: four female and four male. One free 68 MB download; after installation they work offline. Preview samples are available before downloading.",12f,Color.LTGRAY).apply {
+        box.addView(tv("Eight additional neural voices by KittenML: Jasper, Bella, Bruno, Luna, Hugo, Rosie, Leo and Kiki. Four female and four male. One free 68 MB download; after installation they work offline. Apache-2.0 model.",12f,Color.LTGRAY).apply {
             setPadding(0,0,0,dp(8))
         })
         box.addView(button(if (isKittenPackInstalled()) "KITTEN MINI • INSTALLED OFFLINE" else "DOWNLOAD KITTEN MINI • 68 MB", !isKittenPackInstalled()) {
