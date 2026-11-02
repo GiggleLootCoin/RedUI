@@ -67,6 +67,14 @@ jobs:
             rm -rf "$unpack" "$archive"
           done
           test -s app/src/main/assets/espeak-ng-data/en_dict
+          mkdir -p /tmp/kitten-mini-en-v0_8 app/build/voice-packs
+          wget -q --show-progress --tries=5 --timeout=30 -O /tmp/kitten-mini-en-v0_8.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kitten-mini-en-v0_8.tar.bz2"
+          tar -xjf /tmp/kitten-mini-en-v0_8.tar.bz2 --strip-components=1 -C /tmp/kitten-mini-en-v0_8
+          test -s /tmp/kitten-mini-en-v0_8/model.onnx
+          test -s /tmp/kitten-mini-en-v0_8/voices.bin
+          test -s /tmp/kitten-mini-en-v0_8/tokens.txt
+          (cd /tmp/kitten-mini-en-v0_8 && zip -9 -q "$GITHUB_WORKSPACE/app/build/voice-packs/KittenMiniVoices.zip" model.onnx voices.bin tokens.txt)
+          test -s app/build/voice-packs/KittenMiniVoices.zip
 
       - name: Install preset lobby background
         run: |
@@ -144,13 +152,56 @@ jobs:
           for voice in lessac amy cori alan joe john kathleen glados; do
             test -s "app/src/main/assets/testvoices/$voice.wav"
           done
+          python3 - <<'PY'
+          import os
+          import struct
+          import wave
+          import sherpa_onnx
+
+          root = "/tmp/kitten-mini-en-v0_8"
+          cfg = sherpa_onnx.OfflineTtsConfig(
+              model=sherpa_onnx.OfflineTtsModelConfig(
+                  kitten=sherpa_onnx.OfflineTtsKittenModelConfig(
+                      model=os.path.join(root, "model.onnx"),
+                      voices=os.path.join(root, "voices.bin"),
+                      tokens=os.path.join(root, "tokens.txt"),
+                      data_dir=os.path.join(root, "espeak-ng-data"),
+                  ),
+                  num_threads=1,
+                  debug=False,
+                  provider="cpu",
+              ),
+              max_num_sentences=1,
+          )
+          if not cfg.validate():
+              raise RuntimeError("Kitten Mini configuration failed validation")
+          tts = sherpa_onnx.OfflineTts(cfg)
+          for sid in range(8):
+              audio = tts.generate("Hello. This is voice number " + str(sid + 1) + " in Red U I.", sid=sid, speed=1.0)
+              if not audio.samples:
+                  raise RuntimeError("Kitten Mini voice generated no audio: " + str(sid))
+              out = f"app/src/main/assets/testvoices/kitten-{sid}.wav"
+              with wave.open(out, "wb") as wf:
+                  wf.setnchannels(1)
+                  wf.setsampwidth(2)
+                  wf.setframerate(audio.sample_rate)
+                  frames = bytearray()
+                  for sample in audio.samples:
+                      sample = max(-1.0, min(1.0, float(sample)))
+                      frames.extend(struct.pack("<h", int(sample * 32767.0)))
+                  wf.writeframes(frames)
+              print("generated", out)
+          PY
+          for sid in 0 1 2 3 4 5 6 7; do
+            test -s "app/src/main/assets/testvoices/kitten-$sid.wav"
+          done
           test -s app/src/main/res/drawable-nodpi/lobby_hero.jpg
           test -s app/src/main/res/drawable/redui_logo.xml
           for voice in lessac amy cori alan joe john kathleen glados; do
             test -s "app/src/main/assets/voices/$voice/tokens.txt"
           done
           ls -lh app/src/main/assets/testvoices
-          rm -rf /tmp/redui-tts
+          rm -rf /tmp/redui-tts /tmp/kitten-mini-en-v0_8 /tmp/kitten-mini-en-v0_8.tar.bz2
 
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
@@ -170,6 +221,10 @@ jobs:
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
             unzip -l "$APK" | grep -q "assets/testvoices/$VOICE.wav"
           done
+          for SID in 0 1 2 3 4 5 6 7; do
+            unzip -l "$APK" | grep -q "assets/testvoices/kitten-$SID.wav"
+          done
+          test -s app/build/voice-packs/KittenMiniVoices.zip
           for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-medium.onnx en_GB-alan-medium.onnx en_US-joe-medium.onnx en_US-john-medium.onnx en_US-kathleen-low.onnx en_US-glados.onnx; do
             unzip -l "$APK" | grep -q "$MODEL"
           done
@@ -189,6 +244,9 @@ jobs:
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
             unzip -l "$APK" | grep -q "assets/testvoices/$VOICE.wav"
           done
+          for SID in 0 1 2 3 4 5 6 7; do
+            unzip -l "$APK" | grep -q "assets/testvoices/kitten-$SID.wav"
+          done
           for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-medium.onnx en_GB-alan-medium.onnx en_US-joe-medium.onnx en_US-john-medium.onnx en_US-kathleen-low.onnx en_US-glados.onnx; do
             unzip -l "$APK" | grep -q "$MODEL"
           done
@@ -207,5 +265,7 @@ jobs:
         with:
           tag_name: v${{ github.run_number }}
           name: RedUI v${{ github.run_number }}
-          files: app/build/outputs/**/*.apk
+          files: |
+            app/build/outputs/**/*.apk
+            app/build/voice-packs/KittenMiniVoices.zip
           generate_release_notes: true
