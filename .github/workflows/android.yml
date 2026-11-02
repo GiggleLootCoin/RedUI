@@ -44,6 +44,7 @@ jobs:
             "alba|vits-piper-en_GB-alba-medium|en_GB-alba-medium.onnx"
             "jenny_dioco|vits-piper-en_GB-jenny_dioco-medium|en_GB-jenny_dioco-medium.onnx"
             "northern_english_male|vits-piper-en_GB-northern_english_male-medium|en_GB-northern_english_male-medium.onnx"
+            "vctk|vits-piper-en_GB-vctk-medium|en_GB-vctk-medium.onnx"
           )
           for spec in "${voices[@]}"; do
             IFS='|' read -r key dirname modelfile <<< "$spec"
@@ -107,6 +108,7 @@ jobs:
               ("alba", "vits-piper-en_GB-alba-medium", "en_GB-alba-medium.onnx"),
               ("jenny_dioco", "vits-piper-en_GB-jenny_dioco-medium", "en_GB-jenny_dioco-medium.onnx"),
               ("northern_english_male", "vits-piper-en_GB-northern_english_male-medium", "en_GB-northern_english_male-medium.onnx"),
+              ("vctk", "vits-piper-en_GB-vctk-medium", "en_GB-vctk-medium.onnx"),
           ]
 
           root = "/tmp/redui-tts"
@@ -134,28 +136,41 @@ jobs:
               if not cfg.validate():
                   raise RuntimeError("Invalid TTS config for " + key)
               tts = sherpa_onnx.OfflineTts(cfg)
-              audio = tts.generate(
-                  "Hello. This is the " + key + " voice in Red U I.",
-                  sid=0,
-                  speed=1.0,
-              )
-              if not audio.samples:
-                  raise RuntimeError("No audio generated for " + key)
-              out = f"app/src/main/assets/testvoices/{key}.wav"
-              with wave.open(out, "wb") as wf:
-                  wf.setnchannels(1)
-                  wf.setsampwidth(2)
-                  wf.setframerate(audio.sample_rate)
-                  frames = bytearray()
-                  for sample in audio.samples:
-                      sample = max(-1.0, min(1.0, float(sample)))
-                      frames.extend(struct.pack("<h", int(sample * 32767.0)))
-                  wf.writeframes(frames)
-              print("generated", out)
+              speaker_ids = [95, 82, 60, 102, 98, 81, 97, 93, 5, 92, 79, 76, 84, 104, 57, 107, 90, 74, 94, 1, 17, 0, 48, 87] if key == "vctk" else [0]
+              for sid in speaker_ids:
+                  audio = tts.generate(
+                      "Hello. This is voice sample " + str(sid) + " in Red U I.",
+                      sid=sid,
+                      speed=1.0,
+                  )
+                  if not audio.samples:
+                      raise RuntimeError("No audio generated for " + key + " speaker " + str(sid))
+                  out_name = f"vctk-{sid}.wav" if key == "vctk" else f"{key}.wav"
+                  out = f"app/src/main/assets/testvoices/{out_name}"
+                  with wave.open(out, "wb") as wf:
+                      wf.setnchannels(1)
+                      wf.setsampwidth(2)
+                      wf.setframerate(audio.sample_rate)
+                      frames = bytearray()
+                      for sample in audio.samples:
+                          sample = max(-1.0, min(1.0, float(sample)))
+                          frames.extend(struct.pack("<h", int(sample * 32767.0)))
+                      wf.writeframes(frames)
+                  print("generated", out)
           PY
           for voice in lessac amy cori alan alba jenny_dioco northern_english_male; do
             test -s "app/src/main/assets/testvoices/$voice.wav"
           done
+          for sid in 95 82 60 102 98 81 97 93 5 92 79 76 84 104 57 107 90 74 94 1 17 0 48 87; do
+            test -s "app/src/main/assets/testvoices/vctk-$sid.wav"
+          done
+          cat > app/src/main/assets/voices/vctk/ATTRIBUTION.txt <<'EOF'
+          VCTK Piper multi-speaker voice model, 109 speakers.
+          Source model: https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/vctk/medium
+          Dataset: CSTR VCTK Corpus, University of Edinburgh.
+          Dataset licence: Creative Commons Attribution 4.0 International (CC BY 4.0).
+          The model is bundled in RedUI for offline text-to-speech. Speaker identities are anonymised dataset IDs.
+          EOF
           python3 - <<'PY'
           import os
           import struct
@@ -202,7 +217,7 @@ jobs:
           done
           test -s app/src/main/res/drawable-nodpi/lobby_hero.jpg
           test -s app/src/main/res/drawable/redui_logo.xml
-          for voice in lessac amy cori alan alba jenny_dioco northern_english_male; do
+          for voice in lessac amy cori alan alba jenny_dioco northern_english_male vctk; do
             test -s "app/src/main/assets/voices/$voice/tokens.txt"
           done
           ls -lh app/src/main/assets/testvoices
@@ -226,7 +241,9 @@ jobs:
           unzip -l "$APK" | grep -q "assets/kitten-mini/tokens.txt"
           unzip -l "$APK" | grep -q "assets/kitten-mini/LICENSE"
           unzip -l "$APK" | grep -q "assets/reds_ways_of_thinking.jsonl"
-          for VOICE in lessac amy cori alan alba jenny_dioco northern_english_male; do
+          unzip -l "$APK" | grep -q "assets/voices/vctk/en_GB-vctk-medium.onnx"
+          unzip -l "$APK" | grep -q "assets/voices/vctk/ATTRIBUTION.txt"
+          for VOICE in lessac amy cori alan alba jenny_dioco northern_english_male vctk; do
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
             unzip -l "$APK" | grep -q "assets/testvoices/$VOICE.wav"
@@ -234,7 +251,10 @@ jobs:
           for SID in 0 1 2 3 4 5 6 7; do
             unzip -l "$APK" | grep -q "assets/testvoices/kitten-$SID.wav"
           done
-          for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-high.onnx en_GB-alan-medium.onnx en_GB-alba-medium.onnx en_GB-jenny_dioco-medium.onnx en_GB-northern_english_male-medium.onnx; do
+          for SID in 95 82 60 102 98 81 97 93 5 92 79 76 84 104 57 107 90 74 94 1 17 0 48 87; do
+            unzip -l "$APK" | grep -q "assets/testvoices/vctk-$SID.wav"
+          done
+          for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-high.onnx en_GB-alan-medium.onnx en_GB-alba-medium.onnx en_GB-jenny_dioco-medium.onnx en_GB-northern_english_male-medium.onnx en_GB-vctk-medium.onnx; do
             unzip -l "$APK" | grep -q "$MODEL"
           done
           unzip -l "$APK" | grep -q 'AndroidManifest.xml'
