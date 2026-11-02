@@ -67,17 +67,20 @@ jobs:
             rm -rf "$unpack" "$archive"
           done
           test -s app/src/main/assets/espeak-ng-data/en_dict
-          mkdir -p /tmp/kitten-mini-en-v0_8 app/build/voice-packs
+          mkdir -p /tmp/kitten-mini-en-v0_8 app/src/main/assets/kitten-mini
           wget -q --show-progress --tries=5 --timeout=30 -O /tmp/kitten-mini-en-v0_8.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kitten-mini-en-v0_8.tar.bz2"
           tar -xjf /tmp/kitten-mini-en-v0_8.tar.bz2 --strip-components=1 -C /tmp/kitten-mini-en-v0_8
           wget -q --tries=5 --timeout=30 -O /tmp/kitten-mini-en-v0_8/LICENSE "https://raw.githubusercontent.com/KittenML/KittenTTS/main/LICENSE"
-          printf '%s\n' "Kitten TTS Mini 0.8 — KittenML" "Model: KittenML/kitten-tts-mini-0.8" "Eight speakers: Jasper, Bella, Bruno, Luna, Hugo, Rosie, Leo, Kiki" "Model card license: Apache-2.0" "Voice pack created by RedUI build automation; model weights remain KittenML's." > /tmp/kitten-mini-en-v0_8/README.txt
+          printf '%s\\n' "Kitten TTS Mini 0.8 — KittenML" "Model: KittenML/kitten-tts-mini-0.8" "Eight speakers: Jasper, Bella, Bruno, Luna, Hugo, Rosie, Leo, Kiki" "Model card license: Apache-2.0" "Bundled in RedUI; model weights remain KittenML's." > /tmp/kitten-mini-en-v0_8/README.txt
           test -s /tmp/kitten-mini-en-v0_8/LICENSE
           test -s /tmp/kitten-mini-en-v0_8/model.onnx
           test -s /tmp/kitten-mini-en-v0_8/voices.bin
           test -s /tmp/kitten-mini-en-v0_8/tokens.txt
-          (cd /tmp/kitten-mini-en-v0_8 && zip -9 -q "$GITHUB_WORKSPACE/app/build/voice-packs/KittenMiniVoices.zip" model.onnx voices.bin tokens.txt LICENSE README.txt)
-          test -s app/build/voice-packs/KittenMiniVoices.zip
+          cp /tmp/kitten-mini-en-v0_8/model.onnx /tmp/kitten-mini-en-v0_8/voices.bin /tmp/kitten-mini-en-v0_8/tokens.txt /tmp/kitten-mini-en-v0_8/LICENSE /tmp/kitten-mini-en-v0_8/README.txt app/src/main/assets/kitten-mini/
+          test -s app/src/main/assets/kitten-mini/model.onnx
+          test -s app/src/main/assets/kitten-mini/voices.bin
+          test -s app/src/main/assets/kitten-mini/tokens.txt
+          test -s app/src/main/assets/kitten-mini/LICENSE
 
       - name: Install preset lobby background
         run: |
@@ -220,6 +223,10 @@ jobs:
           test -n "$APK"
           echo "Checking APK contains every real bundled TTS model, tokens, espeak data, test WAV, and core assets:"
           unzip -l "$APK" | grep -q "assets/espeak-ng-data/en_dict"
+          unzip -l "$APK" | grep -q "assets/kitten-mini/model.onnx"
+          unzip -l "$APK" | grep -q "assets/kitten-mini/voices.bin"
+          unzip -l "$APK" | grep -q "assets/kitten-mini/tokens.txt"
+          unzip -l "$APK" | grep -q "assets/kitten-mini/LICENSE"
           for VOICE in lessac amy cori alan joe john kathleen glados; do
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
@@ -228,7 +235,6 @@ jobs:
           for SID in 0 1 2 3 4 5 6 7; do
             unzip -l "$APK" | grep -q "assets/testvoices/kitten-$SID.wav"
           done
-          test -s app/build/voice-packs/KittenMiniVoices.zip
           for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-medium.onnx en_GB-alan-medium.onnx en_US-joe-medium.onnx en_US-john-medium.onnx en_US-kathleen-low.onnx en_US-glados.onnx; do
             unzip -l "$APK" | grep -q "$MODEL"
           done
@@ -242,6 +248,10 @@ jobs:
           ls -lh "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           unzip -l "$APK" | grep -q "assets/espeak-ng-data/en_dict"
+          unzip -l "$APK" | grep -q "assets/kitten-mini/model.onnx"
+          unzip -l "$APK" | grep -q "assets/kitten-mini/voices.bin"
+          unzip -l "$APK" | grep -q "assets/kitten-mini/tokens.txt"
+          unzip -l "$APK" | grep -q "assets/kitten-mini/LICENSE"
           unzip -l "$APK" | grep -q 'assets/testvoices/lessac.wav'
           for VOICE in lessac amy cori alan joe john kathleen glados; do
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
@@ -271,5 +281,4 @@ jobs:
           name: RedUI v${{ github.run_number }}
           files: |
             app/build/outputs/**/*.apk
-            app/build/voice-packs/KittenMiniVoices.zip
           generate_release_notes: true
