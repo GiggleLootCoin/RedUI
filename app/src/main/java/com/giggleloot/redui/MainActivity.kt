@@ -284,7 +284,8 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         })
         identity.addView(tv("Created with love by LittleRedBigSmile", 9f, Color.rgb(158, 155, 164)))
         header.addView(identity, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(button("⋯") { showSettings() }, LinearLayout.LayoutParams(dp(48), dp(44)))
+        header.addView(button("＋") { startNewChat() }, LinearLayout.LayoutParams(dp(44), dp(44)))
+        header.addView(button("⋯") { showSettings() }, LinearLayout.LayoutParams(dp(44), dp(44)))
         shell.addView(header)
         shell.addView(View(this).apply { setBackgroundColor(accentShade(.8f)) },
             LinearLayout.LayoutParams(-1, dp(1)).apply { bottomMargin = dp(10) })
