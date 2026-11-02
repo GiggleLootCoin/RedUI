@@ -167,9 +167,11 @@ jobs:
           cat > app/src/main/assets/voices/vctk/ATTRIBUTION.txt <<'EOF'
           VCTK Piper multi-speaker voice model, 109 speakers.
           Source model: https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_GB/vctk/medium
-          Dataset: CSTR VCTK Corpus, University of Edinburgh.
+          Runtime conversion/archive: sherpa-onnx, https://github.com/k2-fsa/sherpa-onnx
+          Dataset: CSTR VCTK Corpus 0.92, Centre for Speech Technology Research, University of Edinburgh.
+          Dataset authors: Christophe Veaux, Junichi Yamagishi and Kirsten MacDonald.
           Dataset licence: Creative Commons Attribution 4.0 International (CC BY 4.0).
-          The model is bundled in RedUI for offline text-to-speech. Speaker identities are anonymised dataset IDs.
+          Bundled in RedUI for offline text-to-speech. Speaker IDs are anonymised; do not attempt to identify speakers.
           EOF
           python3 - <<'PY'
           import os
