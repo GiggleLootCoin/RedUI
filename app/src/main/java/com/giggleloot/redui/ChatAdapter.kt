@@ -84,11 +84,27 @@ class ChatAdapter(
             (Color.green(first) * (1f - amount) + Color.green(second) * amount).toInt().coerceIn(0, 255),
             (Color.blue(first) * (1f - amount) + Color.blue(second) * amount).toInt().coerceIn(0, 255)
         )
-        holder.bubble.background = GradientDrawable().apply {
-            setColor(if (user) shade(accent, .38f) else Color.rgb(25, 23, 27))
-            setStroke(dp(1), if (user) accent else shade(accent, .38f))
-            cornerRadius = dp(18).toFloat()
+        val bubbleTop = if (user) shade(accent, .48f) else Color.rgb(31, 29, 36)
+        val bubbleBottom = if (user) shade(accent, .30f) else Color.rgb(18, 18, 24)
+        val radius = dp(19).toFloat()
+        val tail = dp(6).toFloat()
+        holder.bubble.background = GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(bubbleTop, bubbleBottom)
+        ).apply {
+            cornerRadii = if (user)
+                floatArrayOf(radius, radius, radius, radius, tail, tail, radius, radius)
+            else
+                floatArrayOf(radius, radius, radius, radius, radius, radius, tail, tail)
+            setStroke(dp(1), if (user) accent else shade(accent, .42f))
         }
+        holder.bubble.elevation = dp(3).toFloat()
+        holder.avatar.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(if (user) Color.rgb(48, 48, 54) else shade(accent, .24f))
+            setStroke(dp(1), if (user) Color.rgb(105, 105, 115) else accent)
+        }
+        holder.avatar.clipToOutline = true
         holder.label.text = if (user) "YOU" else "RED AI"
         holder.label.setTextColor(if (user) mix(accent, Color.WHITE, .55f) else accent)
         holder.text.text = item.text
@@ -98,7 +114,7 @@ class ChatAdapter(
             try { holder.avatar.setImageURI(Uri.parse(uri)) }
             catch (_: Exception) { holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f))) }
         } else {
-            holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else Color.rgb(150, 24, 38)))
+            holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f)))
         }
         val maxBubble = (holder.row.resources.displayMetrics.widthPixels - dp(90)).coerceAtLeast(dp(180))
         val bubbleParams = LinearLayout.LayoutParams(dp(276).coerceAtMost(maxBubble), -2)
