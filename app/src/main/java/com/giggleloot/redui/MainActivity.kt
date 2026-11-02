@@ -190,7 +190,16 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun panel(fill: Int, stroke: Int = Color.rgb(48,48,52), r: Int = 20) =
-        GradientDrawable().apply { setColor(fill); setStroke(dp(1), stroke); cornerRadius = dp(r).toFloat() }
+        GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(
+                fill,
+                Color.rgb((Color.red(fill) - 7).coerceAtLeast(0), (Color.green(fill) - 7).coerceAtLeast(0), (Color.blue(fill) - 7).coerceAtLeast(0))
+            )
+        ).apply {
+            setStroke(dp(1), stroke)
+            cornerRadius = dp(r).toFloat()
+        }
 
     private fun button(textValue: String, accent: Boolean = false, action: () -> Unit) =
         Button(this).apply {
@@ -272,11 +281,11 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             setPadding(dp(13),dp(8),dp(8),dp(8))
         }
         val creatorText = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        creatorText.addView(tv("CREATED WITH LOVE",9f,Color.rgb(240,67,76)).apply {
+        creatorText.addView(tv("CREATED WITH LOVE & TRUTH",9f,Color.rgb(240,67,76)).apply {
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = .12f
         })
-        creatorText.addView(tv("Little Red Big Smile • Red",13f,Color.WHITE).apply {
+        creatorText.addView(tv("LITTLE RED BIG SMILE",13f,Color.WHITE).apply {
             typeface = Typeface.DEFAULT_BOLD
         })
         creator.addView(creatorText,LinearLayout.LayoutParams(0,-2,1f))
@@ -359,7 +368,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         }
         adapter = ChatAdapter(msgs,prefs)
         rv.adapter = adapter
-        chatCard.addView(rv,LinearLayout.LayoutParams(-1,dp(280)))
+        chatCard.addView(rv,LinearLayout.LayoutParams(-1,dp(340)))
         content.addView(chatCard,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)})
 
         // Hands-free bar
@@ -1130,7 +1139,11 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         box.addView(button("USE ANDROID / SAMSUNG PHONE VOICES"){
             selectLocalVoice("android","Android system voices")
         },LinearLayout.LayoutParams(-1,dp(48)))
-        AlertDialog.Builder(this).setTitle("RedUI • Voice Choices").setView(box).setNegativeButton("CLOSE",null).show()
+        val voiceScroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(box)
+        }
+        AlertDialog.Builder(this).setTitle("RedUI • Voice Studio").setView(voiceScroll).setNegativeButton("CLOSE",null).show()
     }
 
     private fun ensureAndroidTts(onReady: () -> Unit) {
