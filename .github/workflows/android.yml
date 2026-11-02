@@ -48,14 +48,25 @@ jobs:
           )
           for spec in "${voices[@]}"; do
             IFS='|' read -r key dirname modelfile <<< "$spec"
-            wget -q --show-progress --tries=5 --timeout=30 -O "/tmp/$dirname.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$dirname.tar.bz2"
+            archive="/tmp/$dirname.tar.bz2"
+            unpack="$(mktemp -d)"
+            wget -q --show-progress --tries=5 --timeout=30 -O "$archive" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$dirname.tar.bz2"
+            tar -xjf "$archive" --strip-components=1 -C "$unpack"
+            test -s "$unpack/$modelfile"
+            test -s "$unpack/tokens.txt"
+            # espeak-ng-data is identical runtime support data, not voice-specific.
+            # Bundle it once instead of duplicating it eight times in the APK.
+            if [ "$key" = "lessac" ]; then
+              test -s "$unpack/espeak-ng-data/en_dict"
+              mkdir -p app/src/main/assets/espeak-ng-data
+              cp -a "$unpack/espeak-ng-data/." app/src/main/assets/espeak-ng-data/
+            fi
             mkdir -p "app/src/main/assets/voices/$key"
-            tar -xjf "/tmp/$dirname.tar.bz2" --strip-components=1 -C "app/src/main/assets/voices/$key"
-            test -s "app/src/main/assets/voices/$key/$modelfile"
-            test -s "app/src/main/assets/voices/$key/tokens.txt"
-            test -d "app/src/main/assets/voices/$key/espeak-ng-data"
-            rm -f "/tmp/$dirname.tar.bz2"
+            cp "$unpack/$modelfile" "app/src/main/assets/voices/$key/$modelfile"
+            cp "$unpack/tokens.txt" "app/src/main/assets/voices/$key/tokens.txt"
+            rm -rf "$unpack" "$archive"
           done
+          test -s app/src/main/assets/espeak-ng-data/en_dict
 
       - name: Install preset lobby background
         run: |
@@ -153,10 +164,10 @@ jobs:
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
           echo "Checking APK contains every real bundled TTS model, tokens, espeak data, test WAV, and core assets:"
+          unzip -l "$APK" | grep -q "assets/espeak-ng-data/en_dict"
           for VOICE in lessac amy cori alan joe john kathleen glados; do
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
-            unzip -l "$APK" | grep -q "assets/voices/$VOICE/espeak-ng-data/"
             unzip -l "$APK" | grep -q "assets/testvoices/$VOICE.wav"
           done
           for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-medium.onnx en_GB-alan-medium.onnx en_US-joe-medium.onnx en_US-john-medium.onnx en_US-kathleen-low.onnx en_US-glados.onnx; do
