@@ -73,19 +73,30 @@ class ChatAdapter(
         holder.avatar.layoutParams = LinearLayout.LayoutParams(dp(34), dp(34)).apply {
             if (user) leftMargin = dp(8) else rightMargin = dp(8)
         }
+        val accent = prefs.getInt("accent_color", Color.rgb(227, 27, 35))
+        fun shade(color: Int, factor: Float) = Color.rgb(
+            (Color.red(color) * factor).toInt().coerceIn(0, 255),
+            (Color.green(color) * factor).toInt().coerceIn(0, 255),
+            (Color.blue(color) * factor).toInt().coerceIn(0, 255)
+        )
+        fun mix(first: Int, second: Int, amount: Float) = Color.rgb(
+            (Color.red(first) * (1f - amount) + Color.red(second) * amount).toInt().coerceIn(0, 255),
+            (Color.green(first) * (1f - amount) + Color.green(second) * amount).toInt().coerceIn(0, 255),
+            (Color.blue(first) * (1f - amount) + Color.blue(second) * amount).toInt().coerceIn(0, 255)
+        )
         holder.bubble.background = GradientDrawable().apply {
-            setColor(if (user) Color.rgb(103, 20, 31) else Color.rgb(25, 23, 27))
-            setStroke(dp(1), if (user) Color.rgb(164, 47, 60) else Color.rgb(65, 49, 57))
+            setColor(if (user) shade(accent, .38f) else Color.rgb(25, 23, 27))
+            setStroke(dp(1), if (user) accent else shade(accent, .38f))
             cornerRadius = dp(18).toFloat()
         }
         holder.label.text = if (user) "YOU" else "RED AI"
-        holder.label.setTextColor(if (user) Color.rgb(255, 205, 210) else Color.rgb(255, 91, 103))
+        holder.label.setTextColor(if (user) mix(accent, Color.WHITE, .55f) else accent)
         holder.text.text = item.text
         val avatarKey = if (user) "user_avatar" else "ai_avatar"
         val uri = prefs.getString(avatarKey, null)
         if (uri != null) {
             try { holder.avatar.setImageURI(Uri.parse(uri)) }
-            catch (_: Exception) { holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else Color.rgb(150, 24, 38))) }
+            catch (_: Exception) { holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f))) }
         } else {
             holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else Color.rgb(150, 24, 38)))
         }
