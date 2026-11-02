@@ -740,10 +740,11 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                     withContext(Dispatchers.Main) { status.text="WEB • checking fresh information…" }
                     webContext = fetchWebText(prompt).take(8000)
                     if (webContext.isBlank()) withContext(Dispatchers.Main) { status.text = "WEB • no result • using local knowledge" }
-                } else {
+                } else if (!online && shouldAutoSearch(prompt)) {
                     webContext = ""
-                    if (!online && shouldAutoSearch(prompt)) withContext(Dispatchers.Main) { status.text = "OFFLINE • using local Red A I" }
+                    withContext(Dispatchers.Main) { status.text = "OFFLINE • using local Red A I" }
                 }
+                // Preserve a manually requested web search until the next answer uses it.
                 // Galaxy A12 performance profile: keep the prompt window tight and
                 // generation bounded so the model spends less time processing old
                 // conversation while retaining enough room for useful answers.
@@ -769,7 +770,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                 LlamaBridge.generateStream(buildPrompt(prompt),object:GenStream{
                     override fun onDelta(t:String){runOnUiThread{rawReply.append(t);msgs[ai]=msgs[ai].copy(text=cleanForDisplay(rawReply.toString()));adapter.notifyItemChanged(ai);rv.scrollToPosition(ai)}}
                     override fun onComplete(){runOnUiThread{
-                        generating=false;msgs[ai]=msgs[ai].copy(text=cleanForDisplay(rawReply.toString()));saveCurrentChat();status.text="LOCAL • ready • "+f.name
+                        generating=false;msgs[ai]=msgs[ai].copy(text=cleanForDisplay(rawReply.toString()));saveCurrentChat();webContext="";status.text="LOCAL • ready • "+f.name
                         if(handsFree)voiceState.text="SPEAKING • you can interrupt"
                         val reply=cleanForSpeech(msgs[ai].text)
                         if(speakReplies)speak(reply) else if(handsFree)startListening()
