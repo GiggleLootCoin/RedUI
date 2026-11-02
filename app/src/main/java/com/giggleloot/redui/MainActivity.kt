@@ -1115,6 +1115,10 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         var temperature = prefs.getFloat("gen_temperature", .62f)
         var topP = prefs.getFloat("gen_top_p", .86f)
         var topK = prefs.getInt("gen_top_k", 28).coerceIn(10, 80)
+        var repeatPenalty = prefs.getFloat("gen_repeat_penalty", 1.08f).coerceIn(1f, 1.30f)
+        var batchSize = prefs.getInt("gen_batch", 64).coerceIn(32, 128)
+        var useMmap = prefs.getBoolean("gen_mmap", true)
+        var flashAttention = prefs.getBoolean("gen_flash", false)
         fun addSlider(title: String, initial: Int, max: Int, label: (Int) -> String, changed: (Int) -> Unit) {
             val value = tv(title + "  " + label(initial), 11f, Color.WHITE).apply {
                 typeface = Typeface.DEFAULT_BOLD; setPadding(0, dp(9), 0, dp(2))
@@ -1138,6 +1142,24 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         addSlider("Temperature", ((temperature - .20f) * 100).toInt().coerceIn(0, 80), 80, { String.format(Locale.US, "%.2f", .20f + it / 100f) }) { temperature = .20f + it / 100f }
         addSlider("Top-p", ((topP - .50f) * 100).toInt().coerceIn(0, 50), 50, { String.format(Locale.US, "%.2f", .50f + it / 100f) }) { topP = .50f + it / 100f }
         addSlider("Top-k", topK - 10, 70, { (it + 10).toString() }) { topK = it + 10 }
+        addSlider("Repeat penalty", ((repeatPenalty - 1f) * 100).toInt().coerceIn(0, 30), 30,
+            { String.format(Locale.US, "%.2f", 1f + it / 100f) }) { repeatPenalty = 1f + it / 100f }
+        addSlider("Batch size", (batchSize - 32) / 16, 6, { (32 + it * 16).toString() }) { batchSize = 32 + it * 16 }
+        val mmapCheck = CheckBox(this).apply {
+            text = "Memory-map model files (recommended)"
+            setTextColor(Color.LTGRAY); isChecked = useMmap
+            setOnCheckedChangeListener { _, checked -> useMmap = checked }
+        }
+        val flashCheck = CheckBox(this).apply {
+            text = "Flash attention (only if the model/backend supports it)"
+            setTextColor(Color.LTGRAY); isChecked = flashAttention
+            setOnCheckedChangeListener { _, checked -> flashAttention = checked }
+        }
+        box.addView(mmapCheck)
+        box.addView(flashCheck)
+        box.addView(tv("GPU offload stays disabled on this device profile for compatibility. CPU threads are adjustable above.", 10f, Color.GRAY).apply {
+            setPadding(0, dp(6), 0, dp(3))
+        })
         val scroll = ScrollView(this).apply { addView(box) }
         AlertDialog.Builder(this).setTitle("Manual performance tuning").setView(scroll)
             .setNegativeButton("CANCEL", null)
@@ -1145,8 +1167,8 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                 prefs.edit().putInt("gen_context", context).putInt("gen_max_tokens", tokens)
                     .putInt("gen_threads", threads).putFloat("gen_temperature", temperature)
                     .putFloat("gen_top_p", topP).putInt("gen_top_k", topK)
-                    .putFloat("gen_repeat_penalty", 1.08f).putInt("gen_batch", 64)
-                    .putBoolean("gen_mmap", true).putBoolean("gen_flash", false)
+                    .putFloat("gen_repeat_penalty", repeatPenalty).putInt("gen_batch", batchSize)
+                    .putBoolean("gen_mmap", useMmap).putBoolean("gen_flash", flashAttention)
                     .putInt("gen_gpu_layers", 0).putString("gen_preset", "MANUAL").apply()
                 Toast.makeText(this, "Manual performance settings saved.", Toast.LENGTH_SHORT).show()
             }.show()
