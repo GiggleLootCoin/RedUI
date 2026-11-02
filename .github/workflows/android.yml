@@ -70,10 +70,13 @@ jobs:
           mkdir -p /tmp/kitten-mini-en-v0_8 app/build/voice-packs
           wget -q --show-progress --tries=5 --timeout=30 -O /tmp/kitten-mini-en-v0_8.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kitten-mini-en-v0_8.tar.bz2"
           tar -xjf /tmp/kitten-mini-en-v0_8.tar.bz2 --strip-components=1 -C /tmp/kitten-mini-en-v0_8
+          wget -q --tries=5 --timeout=30 -O /tmp/kitten-mini-en-v0_8/LICENSE "https://raw.githubusercontent.com/KittenML/KittenTTS/main/LICENSE"
+          printf '%s\n' "Kitten TTS Mini 0.8 — KittenML" "Model: KittenML/kitten-tts-mini-0.8" "Eight speakers: Jasper, Bella, Bruno, Luna, Hugo, Rosie, Leo, Kiki" "Model card license: Apache-2.0" "Voice pack created by RedUI build automation; model weights remain KittenML's." > /tmp/kitten-mini-en-v0_8/README.txt
+          test -s /tmp/kitten-mini-en-v0_8/LICENSE
           test -s /tmp/kitten-mini-en-v0_8/model.onnx
           test -s /tmp/kitten-mini-en-v0_8/voices.bin
           test -s /tmp/kitten-mini-en-v0_8/tokens.txt
-          (cd /tmp/kitten-mini-en-v0_8 && zip -9 -q "$GITHUB_WORKSPACE/app/build/voice-packs/KittenMiniVoices.zip" model.onnx voices.bin tokens.txt)
+          (cd /tmp/kitten-mini-en-v0_8 && zip -9 -q "$GITHUB_WORKSPACE/app/build/voice-packs/KittenMiniVoices.zip" model.onnx voices.bin tokens.txt LICENSE README.txt)
           test -s app/build/voice-packs/KittenMiniVoices.zip
 
       - name: Install preset lobby background
@@ -176,8 +179,9 @@ jobs:
           if not cfg.validate():
               raise RuntimeError("Kitten Mini configuration failed validation")
           tts = sherpa_onnx.OfflineTts(cfg)
-          for sid in range(8):
-              audio = tts.generate("Hello. This is voice number " + str(sid + 1) + " in Red U I.", sid=sid, speed=1.0)
+          voice_names = ["Jasper", "Bella", "Bruno", "Luna", "Hugo", "Rosie", "Leo", "Kiki"]
+          for sid, voice_name in enumerate(voice_names):
+              audio = tts.generate("Hello. This is " + voice_name + ", one of the Kitten Mini voices in Red U I.", sid=sid, speed=1.0)
               if not audio.samples:
                   raise RuntimeError("Kitten Mini voice generated no audio: " + str(sid))
               out = f"app/src/main/assets/testvoices/kitten-{sid}.wav"
