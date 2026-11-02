@@ -1205,6 +1205,10 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             VoiceChoice("kitten_6", "Leo", "Male • Kitten Mini • Voice 7"),
             VoiceChoice("kitten_7", "Kiki", "Female • Kitten Mini • Voice 8")
         )
+        val vctk = vctkSpeakerIds.map { id ->
+            VoiceChoice("vctk_$id", vctkVoiceLabels["vctk_$id"] ?: "British Voice • p$id",
+                "VCTK multi-speaker • English accents • CC BY 4.0")
+        }
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(6), dp(18), dp(6))
