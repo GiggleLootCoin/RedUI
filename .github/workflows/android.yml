@@ -225,6 +225,7 @@ jobs:
           unzip -l "$APK" | grep -q "assets/kitten-mini/voices.bin"
           unzip -l "$APK" | grep -q "assets/kitten-mini/tokens.txt"
           unzip -l "$APK" | grep -q "assets/kitten-mini/LICENSE"
+          unzip -l "$APK" | grep -q "assets/reds_ways_of_thinking.jsonl"
           for VOICE in lessac amy cori alan alba jenny_dioco northern_english_male; do
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
