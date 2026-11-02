@@ -74,6 +74,33 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var ttsReady = false
     private var selectedVoiceName = ""
     private var localVoiceKey = "lessac"
+    private val vctkSpeakerIds = listOf(95, 82, 60, 102, 98, 81, 97, 93, 5, 92, 79, 76, 84, 104, 57, 107, 90, 74, 94, 1, 17, 0, 48, 87)
+    private val vctkVoiceLabels = mapOf(
+        "vctk_95" to "Surrey British Male • p226",
+        "vctk_82" to "Cumbria British Male • p227",
+        "vctk_60" to "English Male • p232",
+        "vctk_102" to "Scottish Male • p237",
+        "vctk_98" to "Scottish Male • p241",
+        "vctk_81" to "English Male • p243",
+        "vctk_97" to "Irish Male • p245",
+        "vctk_93" to "Scottish Male • p246",
+        "vctk_5" to "Scottish Male • p247",
+        "vctk_92" to "Indian English Male • p251",
+        "vctk_79" to "Male English Voice • p252",
+        "vctk_76" to "Male English Voice • p254",
+        "vctk_84" to "Male English Voice • p255",
+        "vctk_104" to "Male English Voice • p256",
+        "vctk_57" to "Male English Voice • p258",
+        "vctk_107" to "Southern English Female • p225",
+        "vctk_90" to "Southern English Female • p228",
+        "vctk_74" to "English Female • p230",
+        "vctk_94" to "Scottish Female • p234",
+        "vctk_1" to "English Female • p236",
+        "vctk_17" to "Northern Irish Female • p238",
+        "vctk_0" to "English Female • p239",
+        "vctk_48" to "English Female • p244",
+        "vctk_87" to "Indian English Female • p248"
+    )
     private var localSpeakerId = 0
     private var localPlayer: MediaPlayer? = null
     private var localTts: OfflineTts? = null
@@ -381,15 +408,19 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
     private fun initLocalVoiceEngine() {
         cleanupLegacyVoiceData()
         var saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
-        if (saved !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male", "android") + (0..7).map { "kitten_$it" })) saved = "lessac"
+        if (saved !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male", "android") + (0..7).map { "kitten_$it" } + vctkSpeakerIds.map { "vctk_$it" })) saved = "lessac"
         localVoiceKey = saved
         prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", saved != "android").apply()
         status.text = "LOCAL • ready • RedUI voice: " + localVoiceLabel(saved)
     }
 
-    private fun speakerIdFor(key: String): Int = if (key.startsWith("kitten_")) key.substringAfter("_").toIntOrNull()?.coerceIn(0,7) ?: 0 else 0
+    private fun speakerIdFor(key: String): Int = when {
+        key.startsWith("kitten_") -> key.substringAfter("_").toIntOrNull()?.coerceIn(0, 7) ?: 0
+        key.startsWith("vctk_") -> key.substringAfter("_").toIntOrNull()?.coerceIn(0, 108) ?: 0
+        else -> 0
+    }
 
-    private fun voiceModelFile(key: String): String = when (key) {
+    private fun voiceModelFile(key: String): String = if (key.startsWith("vctk_")) "en_GB-vctk-medium.onnx" else when (key) {
         "lessac" -> "en_US-lessac-medium.onnx"
         "amy" -> "en_US-amy-medium.onnx"
         "cori" -> "en_GB-cori-high.onnx"
@@ -429,7 +460,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
 
     private fun ensureLocalTts(key: String): OfflineTts? {
         if (key == "android") return null
-        val cacheKey = if (key.startsWith("kitten_")) "kitten_mini" else key
+        val cacheKey = when { key.startsWith("kitten_") -> "kitten_mini"; key.startsWith("vctk_") -> "vctk"; else -> key }
         if (localTts != null && localTtsLoadedKey == cacheKey) return localTts
         closeLocalTts()
         if (key.startsWith("kitten_")) {
@@ -489,7 +520,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         // copied to real app storage first; this is the same Android strategy used
         // by sherpa-onnx's own TTS engine and avoids treating an APK asset path as
         // a normal filesystem path.
-        val assetDir = "voices/$key"
+        val assetDir = "voices/$cacheKey"
         val dataDir = File(filesDir, "redui-tts/shared/espeak-ng-data")
         val marker = File(dataDir, ".ready")
         // Never trust the marker alone: older broken builds could leave a .ready
@@ -531,7 +562,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         return engine
     }
 
-    private fun localVoiceLabel(key:String):String = when(key) {
+    private fun localVoiceLabel(key:String):String = vctkVoiceLabels[key] ?: when(key) {
         "lessac" -> "RedUI Clear • Lessac"
         "amy" -> "RedUI Warm • Amy"
         "cori" -> "RedUI Bright British • Cori"
@@ -553,7 +584,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
 
     private fun selectLocalVoice(key: String, label: String) {
         stopLocalSpeech()
-        val stayingInKittenFamily = localVoiceKey.startsWith("kitten_") && key.startsWith("kitten_")
+        val stayingInKittenFamily = (localVoiceKey.startsWith("kitten_") && key.startsWith("kitten_")) || (localVoiceKey.startsWith("vctk_") && key.startsWith("vctk_"))
         if (!stayingInKittenFamily) closeLocalTts()
         localVoiceKey = key
         prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", key != "android").apply()
@@ -1006,6 +1037,10 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
     }
 
     private fun showSettings() {
+        val vctk = vctkSpeakerIds.map { id ->
+            VoiceChoice("vctk_$id", vctkVoiceLabels["vctk_$id"] ?: "British Voice • p$id",
+                "VCTK multi-speaker • English accents • CC BY 4.0")
+        }
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(5), dp(20), dp(5))
@@ -1185,6 +1220,21 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             box.addView(tv(choice.technicalName,9f,Color.rgb(145,145,152)).apply {
                 setPadding(dp(5),0,0,dp(5))
             })
+        }
+        box.addView(tv("BRITISH & WORLD ACCENTS • VCTK VOICE COLLECTION",10f,accentColor).apply {
+            typeface=Typeface.DEFAULT_BOLD; setPadding(0,dp(14),0,dp(5))
+        })
+        box.addView(tv("24 additional natural speaker choices from the 109-speaker VCTK model, including British male voices, Scottish, Irish, Northern Irish and Indian English accents. The 77 MB voice model is included offline.",12f,Color.LTGRAY).apply {
+            setPadding(0,0,0,dp(8))
+        })
+        vctk.forEach { choice ->
+            val selected = choice.key == localVoiceKey
+            val row = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+            row.addView(button((if(selected)"✓ " else "")+choice.displayName,selected) {
+                selectLocalVoice(choice.key,choice.displayName+" • "+choice.technicalName)
+            },LinearLayout.LayoutParams(0,dp(46),1f).apply{rightMargin=dp(6)})
+            row.addView(button("PREVIEW"){playBundledVoiceTest(choice.key)},LinearLayout.LayoutParams(dp(88),dp(46)))
+            box.addView(row,LinearLayout.LayoutParams(-1,dp(46)).apply{bottomMargin=dp(2)})
         }
         box.addView(tv("PHONE VOICES • OPTIONAL",10f,Color.GRAY).apply {
             typeface=Typeface.DEFAULT_BOLD; setPadding(0,dp(8),0,dp(5))
@@ -1367,14 +1417,14 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
     }
 
     private fun playBundledVoiceTest(key: String) {
-        if (key !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male") + (0..7).map { "kitten_$it" })) {
+        if (key !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male") + (0..7).map { "kitten_$it" } + vctkSpeakerIds.map { "vctk_$it" })) {
             Toast.makeText(this, "Choose a working Android live voice or a Piper sample first.", Toast.LENGTH_LONG).show()
             return
         }
         lifecycleScope.launch(Dispatchers.IO) {
             val wav = File(cacheDir, "redui-test-" + key + ".wav")
             try {
-                val sampleName = if (key.startsWith("kitten_")) "kitten-" + key.substringAfter("_") else key
+                val sampleName = when { key.startsWith("kitten_") -> "kitten-" + key.substringAfter("_"); key.startsWith("vctk_") -> "vctk-" + speakerIdFor(key); else -> key }
                 assets.open("testvoices/" + sampleName + ".wav").use { input -> wav.outputStream().use { output -> input.copyTo(output) } }
                 withContext(Dispatchers.Main) {
                     try {
