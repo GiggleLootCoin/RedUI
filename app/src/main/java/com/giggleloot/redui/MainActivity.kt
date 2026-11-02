@@ -434,7 +434,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         // Earlier releases copied the same phoneme dictionary into every voice folder.
         // The shared-data layout makes those eight old copies unnecessary.
         val root = File(filesDir, "redui-tts")
-        listOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados").forEach { key ->
+        listOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male").forEach { key ->
             val legacy = File(root, "$key/espeak-ng-data")
             if (legacy.exists()) legacy.deleteRecursively()
         }
@@ -443,7 +443,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     private fun initLocalVoiceEngine() {
         cleanupLegacyVoiceData()
         var saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
-        if (saved !in (setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados", "android") + (0..7).map { "kitten_$it" })) saved = "lessac"
+        if (saved !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male", "android") + (0..7).map { "kitten_$it" })) saved = "lessac"
         localVoiceKey = saved
         prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", saved != "android").apply()
         status.text = "LOCAL • ready • RedUI voice: " + localVoiceLabel(saved)
@@ -454,12 +454,11 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     private fun voiceModelFile(key: String): String = when (key) {
         "lessac" -> "en_US-lessac-medium.onnx"
         "amy" -> "en_US-amy-medium.onnx"
-        "cori" -> "en_GB-cori-medium.onnx"
+        "cori" -> "en_GB-cori-high.onnx"
         "alan" -> "en_GB-alan-medium.onnx"
-        "joe" -> "en_US-joe-medium.onnx"
-        "john" -> "en_US-john-medium.onnx"
-        "kathleen" -> "en_US-kathleen-low.onnx"
-        "glados" -> "en_US-glados.onnx"
+        "alba" -> "en_GB-alba-medium.onnx"
+        "jenny_dioco" -> "en_GB-jenny_dioco-medium.onnx"
+        "northern_english_male" -> "en_GB-northern_english_male-medium.onnx"
         else -> ""
     }
 
@@ -597,12 +596,11 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     private fun localVoiceLabel(key:String):String = when(key) {
         "lessac" -> "RedUI Clear • Lessac"
         "amy" -> "RedUI Warm • Amy"
-        "cori" -> "RedUI British • Cori"
-        "alan" -> "RedUI British Deep • Alan"
-        "joe" -> "RedUI Smooth • Joe"
-        "john" -> "RedUI Strong • John"
-        "kathleen" -> "RedUI Gentle • Kathleen"
-        "glados" -> "GLaDOS • Classic AI"
+        "cori" -> "RedUI Bright British • Cori"
+        "alan" -> "RedUI Deep British • Alan"
+        "alba" -> "RedUI Warm British • Alba"
+        "jenny_dioco" -> "RedUI Friendly British • Jenny"
+        "northern_english_male" -> "RedUI Northern British • Male"
         "kitten_0" -> "Jasper • natural male"
         "kitten_1" -> "Bella • natural female"
         "kitten_2" -> "Bruno • natural male"
@@ -997,14 +995,13 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
 
     private fun showVoiceChoices(){
         val bundled = listOf(
-            VoiceChoice("lessac", "Clear • Lessac", "US English • Piper"),
-            VoiceChoice("amy", "Warm • Amy", "US English • Piper"),
-            VoiceChoice("cori", "British • Cori", "UK English • Piper"),
-            VoiceChoice("alan", "Deep • Alan", "UK English • Piper"),
-            VoiceChoice("joe", "Smooth • Joe", "US English • Piper"),
-            VoiceChoice("john", "Strong • John", "US English • Piper"),
-            VoiceChoice("kathleen", "Gentle • Kathleen", "US English • Piper"),
-            VoiceChoice("glados", "GLaDOS", "Character voice • Piper")
+            VoiceChoice("lessac", "Clear & Natural • Lessac", "US English • Piper Medium"),
+            VoiceChoice("amy", "Warm & Friendly • Amy", "US English • Piper Medium"),
+            VoiceChoice("cori", "Bright British • Cori", "UK English • Piper High Quality"),
+            VoiceChoice("alan", "Deep British • Alan", "UK English • Piper Medium"),
+            VoiceChoice("alba", "Gentle British • Alba", "UK English • Piper Medium"),
+            VoiceChoice("jenny_dioco", "Friendly British • Jenny", "UK English • Piper Medium"),
+            VoiceChoice("northern_english_male", "Northern British • Male", "Northern UK English • Piper Medium")
         )
         val kitten = listOf(
             VoiceChoice("kitten_0", "Jasper", "Male • Kitten Mini • Voice 1"),
@@ -1227,7 +1224,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     }
 
     private fun playBundledVoiceTest(key: String) {
-        if (key !in (setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados") + (0..7).map { "kitten_$it" })) {
+        if (key !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male") + (0..7).map { "kitten_$it" })) {
             Toast.makeText(this, "Choose a working Android live voice or a Piper sample first.", Toast.LENGTH_LONG).show()
             return
         }
