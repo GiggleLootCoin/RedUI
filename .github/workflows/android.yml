@@ -182,11 +182,11 @@ jobs:
           echo "APK: $APK"
           ls -lh "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          unzip -l "$APK" | grep -q "assets/espeak-ng-data/en_dict"
           unzip -l "$APK" | grep -q 'assets/testvoices/lessac.wav'
           for VOICE in lessac amy cori alan joe john kathleen glados; do
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
-            unzip -l "$APK" | grep -q "assets/voices/$VOICE/espeak-ng-data/"
             unzip -l "$APK" | grep -q "assets/testvoices/$VOICE.wav"
           done
           for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-medium.onnx en_GB-alan-medium.onnx en_US-joe-medium.onnx en_US-john-medium.onnx en_US-kathleen-low.onnx en_US-glados.onnx; do
