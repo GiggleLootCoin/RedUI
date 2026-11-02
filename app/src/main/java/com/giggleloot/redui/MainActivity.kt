@@ -34,6 +34,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.llamatik.library.platform.GenStream
 import com.k2fsa.sherpa.onnx.OfflineTts
+import com.k2fsa.sherpa.onnx.OfflineTtsConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsKittenModelConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.getOfflineTtsConfig
 import com.llamatik.library.platform.LlamaBridge
 import com.google.android.gms.tasks.Tasks
@@ -75,6 +78,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var localPlayer: MediaPlayer? = null
     private var localTts: OfflineTts? = null
     private var localTtsLoadedKey = ""
+    @Volatile private var downloadingKittenPack = false
     private var loadedModelPath = ""
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
     private val attachmentContext = StringBuilder()
@@ -194,7 +198,8 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
             background = panel(if (accent) Color.rgb(181,20,29) else Color.rgb(27,27,30),
                 if (accent) Color.rgb(239,65,73) else Color.rgb(65,65,70), 15)
-            minHeight = dp(44); setPadding(dp(10),0,dp(10),0)
+            minHeight = dp(46); setPadding(dp(10),0,dp(10),0)
+            elevation = dp(2).toFloat()
             setOnClickListener { action() }
         }
 
@@ -229,15 +234,12 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             setPadding(dp(2),dp(3),dp(2),dp(9))
         }
 
-        val mark = TextView(this).apply {
-            text = "R"
-            textSize = 26f
-            gravity = Gravity.CENTER
-            typeface = Typeface.create("sans-serif-black",Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            background = panel(Color.rgb(190,22,32),Color.rgb(245,68,76),17)
+        val mark = ImageView(this).apply {
+            setImageResource(R.drawable.redui_logo)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "RedUI logo"
         }
-        header.addView(mark,LinearLayout.LayoutParams(dp(48),dp(48)))
+        header.addView(mark,LinearLayout.LayoutParams(dp(54),dp(54)))
 
         val brand = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -254,10 +256,13 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             letterSpacing = .12f
         })
         header.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
-        header.addView(button("CHATS"){showSavedChats()},LinearLayout.LayoutParams(dp(82),dp(44)))
-        header.addView(button("VOICE"){showVoiceChoices()},LinearLayout.LayoutParams(dp(82),dp(44)))
-        header.addView(button("SETTINGS"){showSettings()},LinearLayout.LayoutParams(dp(98),dp(44)))
+        header.addView(button("SETTINGS"){showSettings()},LinearLayout.LayoutParams(dp(86),dp(44)))
         content.addView(header)
+        val nav = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        nav.addView(button("CHATS"){showSavedChats()},LinearLayout.LayoutParams(0,dp(44),1f).apply{rightMargin=dp(6)})
+        nav.addView(button("VOICE STUDIO",true){showVoiceChoices()},LinearLayout.LayoutParams(0,dp(44),1f).apply{rightMargin=dp(6)})
+        nav.addView(button("IMPORT GGUF"){pickModel.launch(arrayOf("application/octet-stream","application/x-gguf","*/*"))},LinearLayout.LayoutParams(0,dp(44),1f))
+        content.addView(nav,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
 
         // Creator strip — intentionally near the top so the app identity is never buried.
         val creator = LinearLayout(this).apply {
@@ -290,21 +295,17 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = .16f
         })
-        hero.addView(tv("Your AI. Your models. Your way.",22f,Color.WHITE).apply {
+        hero.addView(tv("A creative studio in your pocket.",23f,Color.WHITE).apply {
             typeface = Typeface.create("sans-serif-black",Typeface.BOLD)
             setPadding(0,dp(4),0,0)
         })
-        hero.addView(tv("Fast local AI with real offline voices, hands-free chat, GGUF models, attachments, and automatic live web grounding when you are connected.",12f,Color.rgb(185,185,191)).apply {
+        hero.addView(tv("Your local AI workspace for conversation, voice, ideas and creation.",13f,Color.rgb(196,190,194)).apply {
             setPadding(0,dp(5),0,dp(12))
         })
         val heroButtons = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        heroButtons.addView(button("IMPORT GGUF",true){
-            pickModel.launch(arrayOf("application/octet-stream","application/x-gguf","*/*"))
-        },LinearLayout.LayoutParams(0,dp(44),1f))
+        heroButtons.addView(button("START LIVE CHAT",true){toggleHandsFree()},LinearLayout.LayoutParams(0,dp(48),1f))
         heroButtons.addView(Space(this),LinearLayout.LayoutParams(dp(8),1))
-        heroButtons.addView(button("LIVE VOICE"){
-            toggleHandsFree()
-        },LinearLayout.LayoutParams(0,dp(44),1f))
+        heroButtons.addView(button("CHOOSE A VOICE"){showVoiceChoices()},LinearLayout.LayoutParams(0,dp(48),1f))
         hero.addView(heroButtons)
         content.addView(hero,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)})
 
@@ -434,13 +435,13 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     private fun initLocalVoiceEngine() {
         cleanupLegacyVoiceData()
         var saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
-        if (saved !in setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados", "android")) saved = "lessac"
+        if (saved !in (setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados", "android") + (0..7).map { "kitten_$it" })) saved = "lessac"
         localVoiceKey = saved
         prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", saved != "android").apply()
         status.text = "LOCAL • ready • RedUI voice: " + localVoiceLabel(saved)
     }
 
-    private fun speakerIdFor(key: String): Int = 0
+    private fun speakerIdFor(key: String): Int = if (key.startsWith("kitten_")) key.substringAfter("_").toIntOrNull()?.coerceIn(0,7) ?: 0 else 0
 
     private fun voiceModelFile(key: String): String = when (key) {
         "lessac" -> "en_US-lessac-medium.onnx"
@@ -484,8 +485,50 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     private fun ensureLocalTts(key: String): OfflineTts? {
         if (key == "android") return null
         if (localTts != null && localTtsLoadedKey == key) return localTts
-
         closeLocalTts()
+        if (key.startsWith("kitten_")) {
+            val packDir = File(filesDir, "voice-packs/kitten-mini")
+            val modelFile = File(packDir, "model.onnx")
+            val voicesFile = File(packDir, "voices.bin")
+            val tokensFile = File(packDir, "tokens.txt")
+            if (!modelFile.isFile || !voicesFile.isFile || !tokensFile.isFile) {
+                throw IllegalStateException("Kitten Mini voice pack is not downloaded yet.")
+            }
+            val dataDir = File(filesDir, "redui-tts/shared/espeak-ng-data")
+            val marker = File(dataDir, ".ready")
+            val knownDataFile = File(dataDir, "en_dict")
+            if (!marker.isFile || !knownDataFile.isFile || knownDataFile.length() == 0L) {
+                dataDir.parentFile?.mkdirs()
+                if (dataDir.exists()) dataDir.deleteRecursively()
+                copyAssetTree("espeak-ng-data", dataDir)
+                if (!knownDataFile.isFile || knownDataFile.length() == 0L) {
+                    throw IllegalStateException("Shared pronunciation data is missing.")
+                }
+                marker.writeText("RedUI shared offline pronunciation data ready")
+            }
+            val config = OfflineTtsConfig(
+                model = OfflineTtsModelConfig(
+                    kitten = OfflineTtsKittenModelConfig(
+                        model = modelFile.absolutePath,
+                        voices = voicesFile.absolutePath,
+                        tokens = tokensFile.absolutePath,
+                        dataDir = dataDir.absolutePath
+                    ),
+                    numThreads = 1,
+                    debug = false,
+                    provider = "cpu"
+                ),
+                maxNumSentences = 1
+            )
+            val engine = OfflineTts(config = config)
+            if (engine.numSpeakers() < 8) {
+                engine.release()
+                throw IllegalStateException("Kitten Mini did not expose all eight voices.")
+            }
+            localTts = engine
+            localTtsLoadedKey = key
+            return engine
+        }
         val modelName = voiceModelFile(key)
         if (modelName.isBlank()) return null
 
@@ -535,6 +578,80 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         return engine
     }
 
+    private fun isKittenPackInstalled(): Boolean {
+        val dir = File(filesDir, "voice-packs/kitten-mini")
+        return File(dir, "model.onnx").isFile && File(dir, "voices.bin").isFile && File(dir, "tokens.txt").isFile
+    }
+
+    private fun downloadKittenVoicePack(onReady: (() -> Unit)? = null) {
+        if (isKittenPackInstalled()) { onReady?.invoke(); return }
+        if (downloadingKittenPack) {
+            Toast.makeText(this, "Kitten Mini voice pack is already downloading.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!isNetworkAvailable()) {
+            Toast.makeText(this, "Connect to Wi-Fi once to download the 68 MB voice pack. It works offline afterwards.", Toast.LENGTH_LONG).show()
+            status.text = "VOICE • internet needed for first-time Kitten download"
+            return
+        }
+        downloadingKittenPack = true
+        status.text = "VOICE • downloading Kitten Mini • about 68 MB…"
+        lifecycleScope.launch(Dispatchers.IO) {
+            val archive = File(cacheDir, "KittenMiniVoices.zip")
+            val target = File(filesDir, "voice-packs/kitten-mini")
+            val staging = File(filesDir, "voice-packs/kitten-mini-staging")
+            try {
+                val connection = java.net.URL("https://github.com/GiggleLootCoin/RedUI/releases/latest/download/KittenMiniVoices.zip")
+                    .openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 20000
+                connection.readTimeout = 90000
+                connection.instanceFollowRedirects = true
+                connection.setRequestProperty("User-Agent", "RedUI-Android")
+                connection.inputStream.use { input -> archive.outputStream().use { output -> input.copyTo(output) } }
+                if (archive.length() < 10_000_000L) throw IllegalStateException("Voice pack download was incomplete.")
+                if (staging.exists()) staging.deleteRecursively()
+                staging.mkdirs()
+                java.util.zip.ZipInputStream(archive.inputStream().buffered()).use { zip ->
+                    while (true) {
+                        val entry = zip.nextEntry ?: break
+                        if (!entry.isDirectory) {
+                            val output = File(staging, entry.name)
+                            if (!output.canonicalPath.startsWith(staging.canonicalPath + File.separator)) {
+                                throw SecurityException("Unsafe voice-pack entry.")
+                            }
+                            output.parentFile?.mkdirs()
+                            output.outputStream().use { out -> zip.copyTo(out) }
+                        }
+                        zip.closeEntry()
+                    }
+                }
+                if (!File(staging, "model.onnx").isFile ||
+                    !File(staging, "voices.bin").isFile ||
+                    !File(staging, "tokens.txt").isFile) {
+                    throw IllegalStateException("Downloaded voice pack failed its file checks.")
+                }
+                if (target.exists()) target.deleteRecursively()
+                target.parentFile?.mkdirs()
+                if (!staging.renameTo(target)) throw IllegalStateException("Could not install voice pack.")
+                archive.delete()
+                withContext(Dispatchers.Main) {
+                    downloadingKittenPack = false
+                    status.text = "VOICE • Kitten Mini installed • eight voices available offline"
+                    Toast.makeText(this@MainActivity, "Kitten Mini installed. These eight voices now work offline.", Toast.LENGTH_LONG).show()
+                    onReady?.invoke()
+                }
+            } catch (e: Throwable) {
+                archive.delete()
+                staging.deleteRecursively()
+                withContext(Dispatchers.Main) {
+                    downloadingKittenPack = false
+                    status.text = "VOICE • Kitten Mini download failed"
+                    Toast.makeText(this@MainActivity, e.message ?: "Could not download the voice pack.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     private fun localVoiceLabel(key:String):String = when(key) {
         "lessac" -> "RedUI Clear • Lessac"
         "amy" -> "RedUI Warm • Amy"
@@ -544,6 +661,14 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         "john" -> "RedUI Strong • John"
         "kathleen" -> "RedUI Gentle • Kathleen"
         "glados" -> "GLaDOS • Classic AI"
+        "kitten_0" -> "Atlas • natural male"
+        "kitten_1" -> "Ruby • natural female"
+        "kitten_2" -> "Miles • natural male"
+        "kitten_3" -> "Violet • natural female"
+        "kitten_4" -> "Theo • natural male"
+        "kitten_5" -> "Sage • natural female"
+        "kitten_6" -> "Leo • natural male"
+        "kitten_7" -> "Luna • natural female"
         "android" -> "Android system voice"
         else -> key
     }
@@ -560,8 +685,16 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             return
         }
 
-        status.text = "VOICE • $label • loading bundled model…"
-        Toast.makeText(this, "$label selected • testing the real bundled voice", Toast.LENGTH_SHORT).show()
+        if (key.startsWith("kitten_") && !isKittenPackInstalled()) {
+            status.text = "VOICE • downloading optional Kitten Mini voice pack…"
+            downloadKittenVoicePack {
+                status.text = "VOICE • $label • ready offline"
+                speakWithLocalVoice("Hello. " + label.substringBefore(" •") + " is now selected in Red U I.")
+            }
+            return
+        }
+        status.text = "VOICE • $label • loading neural voice…"
+        Toast.makeText(this, "$label selected • testing the actual reply voice", Toast.LENGTH_SHORT).show()
         speakWithLocalVoice("Hello. " + label.substringBefore(" •") + " is now selected in Red U I.")
     }
 
@@ -929,14 +1062,24 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
 
     private fun showVoiceChoices(){
         val bundled = listOf(
-            VoiceChoice("lessac", "RedUI Clear", "Lessac • US English"),
-            VoiceChoice("amy", "RedUI Warm", "Amy • US English"),
-            VoiceChoice("cori", "RedUI British", "Cori • UK English"),
-            VoiceChoice("alan", "RedUI British Deep", "Alan • UK English"),
-            VoiceChoice("joe", "RedUI Smooth", "Joe • US English"),
-            VoiceChoice("john", "RedUI Strong", "John • US English"),
-            VoiceChoice("kathleen", "RedUI Gentle", "Kathleen • US English"),
-            VoiceChoice("glados", "GLaDOS", "Classic AI voice • US English")
+            VoiceChoice("lessac", "Clear • Lessac", "US English • Piper"),
+            VoiceChoice("amy", "Warm • Amy", "US English • Piper"),
+            VoiceChoice("cori", "British • Cori", "UK English • Piper"),
+            VoiceChoice("alan", "Deep • Alan", "UK English • Piper"),
+            VoiceChoice("joe", "Smooth • Joe", "US English • Piper"),
+            VoiceChoice("john", "Strong • John", "US English • Piper"),
+            VoiceChoice("kathleen", "Gentle • Kathleen", "US English • Piper"),
+            VoiceChoice("glados", "GLaDOS", "Character voice • Piper")
+        )
+        val kitten = listOf(
+            VoiceChoice("kitten_0", "Atlas", "Male • Kitten Mini • Voice 1"),
+            VoiceChoice("kitten_1", "Ruby", "Female • Kitten Mini • Voice 2"),
+            VoiceChoice("kitten_2", "Miles", "Male • Kitten Mini • Voice 3"),
+            VoiceChoice("kitten_3", "Violet", "Female • Kitten Mini • Voice 4"),
+            VoiceChoice("kitten_4", "Theo", "Male • Kitten Mini • Voice 5"),
+            VoiceChoice("kitten_5", "Sage", "Female • Kitten Mini • Voice 6"),
+            VoiceChoice("kitten_6", "Leo", "Male • Kitten Mini • Voice 7"),
+            VoiceChoice("kitten_7", "Luna", "Female • Kitten Mini • Voice 8")
         )
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -957,6 +1100,27 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             row.addView(button("PREVIEW"){playBundledVoiceTest(choice.key)},LinearLayout.LayoutParams(dp(92),dp(48)))
             box.addView(row,LinearLayout.LayoutParams(-1,dp(48)).apply{bottomMargin=dp(2)})
             box.addView(tv(choice.technicalName+" • INCLUDED OFFLINE",9f,Color.rgb(145,145,152)).apply {
+                setPadding(dp(5),0,0,dp(5))
+            })
+        }
+        box.addView(tv("NATURAL VOICE COLLECTION • KITTEN MINI",10f,Color.rgb(240,67,76)).apply {
+            typeface=Typeface.DEFAULT_BOLD; setPadding(0,dp(12),0,dp(5))
+        })
+        box.addView(tv("Eight additional neural voices: four female and four male. One free 68 MB download; after installation they work offline. Preview samples are available before downloading.",12f,Color.LTGRAY).apply {
+            setPadding(0,0,0,dp(8))
+        })
+        box.addView(button(if (isKittenPackInstalled()) "KITTEN MINI • INSTALLED OFFLINE" else "DOWNLOAD KITTEN MINI • 68 MB", !isKittenPackInstalled()) {
+            downloadKittenVoicePack()
+        },LinearLayout.LayoutParams(-1,dp(48)).apply{bottomMargin=dp(8)})
+        kitten.forEach { choice ->
+            val selected = choice.key == localVoiceKey
+            val row = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL }
+            row.addView(button((if(selected)"✓ " else "")+choice.displayName,selected) {
+                selectLocalVoice(choice.key,choice.displayName+" • "+choice.technicalName)
+            },LinearLayout.LayoutParams(0,dp(46),1f).apply{rightMargin=dp(6)})
+            row.addView(button("PREVIEW"){playBundledVoiceTest(choice.key)},LinearLayout.LayoutParams(dp(88),dp(46)))
+            box.addView(row,LinearLayout.LayoutParams(-1,dp(46)).apply{bottomMargin=dp(2)})
+            box.addView(tv(choice.technicalName,9f,Color.rgb(145,145,152)).apply {
                 setPadding(dp(5),0,0,dp(5))
             })
         }
@@ -1127,14 +1291,15 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
     }
 
     private fun playBundledVoiceTest(key: String) {
-        if (key !in setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados")) {
+        if (key !in (setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados") + (0..7).map { "kitten_$it" })) {
             Toast.makeText(this, "Choose a working Android live voice or a Piper sample first.", Toast.LENGTH_LONG).show()
             return
         }
         lifecycleScope.launch(Dispatchers.IO) {
             val wav = File(cacheDir, "redui-test-" + key + ".wav")
             try {
-                assets.open("testvoices/" + key + ".wav").use { input -> wav.outputStream().use { output -> input.copyTo(output) } }
+                val sampleName = if (key.startsWith("kitten_")) "kitten-" + key.substringAfter("_") else key
+                assets.open("testvoices/" + sampleName + ".wav").use { input -> wav.outputStream().use { output -> input.copyTo(output) } }
                 withContext(Dispatchers.Main) {
                     try {
                         stopLocalSpeech()
