@@ -421,7 +421,18 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         setContentView(root)
     }
 
+    private fun cleanupLegacyVoiceData() {
+        // Earlier releases copied the same phoneme dictionary into every voice folder.
+        // The shared-data layout makes those eight old copies unnecessary.
+        val root = File(filesDir, "redui-tts")
+        listOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados").forEach { key ->
+            val legacy = File(root, "$key/espeak-ng-data")
+            if (legacy.exists()) legacy.deleteRecursively()
+        }
+    }
+
     private fun initLocalVoiceEngine() {
+        cleanupLegacyVoiceData()
         var saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
         if (saved !in setOf("lessac", "amy", "cori", "alan", "joe", "john", "kathleen", "glados", "android")) saved = "lessac"
         localVoiceKey = saved
