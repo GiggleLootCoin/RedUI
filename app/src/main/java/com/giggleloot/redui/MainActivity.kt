@@ -1039,10 +1039,6 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
     }
 
     private fun showSettings() {
-        val vctk = vctkSpeakerIds.map { id ->
-            VoiceChoice("vctk_$id", vctkVoiceLabels["vctk_$id"] ?: "British Voice • p$id",
-                "VCTK multi-speaker • English accents • CC BY 4.0")
-        }
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(5), dp(20), dp(5))
