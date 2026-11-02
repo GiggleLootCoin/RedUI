@@ -493,7 +493,8 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
 
     private fun ensureLocalTts(key: String): OfflineTts? {
         if (key == "android") return null
-        if (localTts != null && localTtsLoadedKey == key) return localTts
+        val cacheKey = if (key.startsWith("kitten_")) "kitten_mini" else key
+        if (localTts != null && localTtsLoadedKey == cacheKey) return localTts
         closeLocalTts()
         if (key.startsWith("kitten_")) {
             val packDir = File(filesDir, "voice-packs/kitten-mini")
@@ -535,7 +536,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
                 throw IllegalStateException("Kitten Mini did not expose all eight voices.")
             }
             localTts = engine
-            localTtsLoadedKey = key
+            localTtsLoadedKey = cacheKey
             return engine
         }
         val modelName = voiceModelFile(key)
@@ -583,7 +584,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             throw IllegalStateException("Bundled voice initialized without a speaker: $key")
         }
         localTts = engine
-        localTtsLoadedKey = key
+        localTtsLoadedKey = cacheKey
         return engine
     }
 
@@ -684,7 +685,8 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
 
     private fun selectLocalVoice(key: String, label: String) {
         stopLocalSpeech()
-        closeLocalTts()
+        val stayingInKittenFamily = localVoiceKey.startsWith("kitten_") && key.startsWith("kitten_")
+        if (!stayingInKittenFamily) closeLocalTts()
         localVoiceKey = key
         prefs.edit().putString("local_voice_key", key).putBoolean("local_voice", key != "android").apply()
 
