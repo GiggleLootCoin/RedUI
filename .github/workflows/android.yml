@@ -243,11 +243,13 @@ jobs:
           unzip -l "$APK" | grep -q "assets/reds_ways_of_thinking.jsonl"
           unzip -l "$APK" | grep -q "assets/voices/vctk/en_GB-vctk-medium.onnx"
           unzip -l "$APK" | grep -q "assets/voices/vctk/ATTRIBUTION.txt"
-          for VOICE in lessac amy cori alan alba jenny_dioco northern_english_male vctk; do
+          for VOICE in lessac amy cori alan alba jenny_dioco northern_english_male; do
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
             unzip -l "$APK" | grep -q "assets/testvoices/$VOICE.wav"
           done
+          unzip -l "$APK" | grep -q "assets/voices/vctk/tokens.txt"
+          unzip -l "$APK" | grep -q "assets/voices/vctk/ATTRIBUTION.txt"
           for SID in 0 1 2 3 4 5 6 7; do
             unzip -l "$APK" | grep -q "assets/testvoices/kitten-$SID.wav"
           done
@@ -272,6 +274,9 @@ jobs:
           unzip -l "$APK" | grep -q "assets/kitten-mini/tokens.txt"
           unzip -l "$APK" | grep -q "assets/kitten-mini/LICENSE"
           unzip -l "$APK" | grep -q 'assets/testvoices/lessac.wav'
+          unzip -l "$APK" | grep -q "assets/voices/vctk/en_GB-vctk-medium.onnx"
+          unzip -l "$APK" | grep -q "assets/voices/vctk/tokens.txt"
+          unzip -l "$APK" | grep -q "assets/voices/vctk/ATTRIBUTION.txt"
           for VOICE in lessac amy cori alan alba jenny_dioco northern_english_male; do
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/"
             unzip -l "$APK" | grep -q "assets/voices/$VOICE/tokens.txt"
@@ -279,6 +284,9 @@ jobs:
           done
           for SID in 0 1 2 3 4 5 6 7; do
             unzip -l "$APK" | grep -q "assets/testvoices/kitten-$SID.wav"
+          done
+          for SID in 95 82 60 102 98 81 97 93 5 92 79 76 84 104 57 107 90 74 94 1 17 0 48 87; do
+            unzip -l "$APK" | grep -q "assets/testvoices/vctk-$SID.wav"
           done
           for MODEL in en_US-lessac-medium.onnx en_US-amy-medium.onnx en_GB-cori-high.onnx en_GB-alan-medium.onnx en_GB-alba-medium.onnx en_GB-jenny_dioco-medium.onnx en_GB-northern_english_male-medium.onnx; do
             unzip -l "$APK" | grep -q "$MODEL"
