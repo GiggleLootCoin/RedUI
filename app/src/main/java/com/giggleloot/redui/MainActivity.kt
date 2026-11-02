@@ -80,6 +80,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var localTtsLoadedKey = ""
         private var loadedModelPath = ""
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
+    private val accentColor: Int get() = prefs.getInt("accent_color", Color.rgb(227, 27, 35))
+    private fun accentShade(factor: Float): Int = Color.rgb(
+        (Color.red(accentColor) * factor).toInt().coerceIn(0, 255),
+        (Color.green(accentColor) * factor).toInt().coerceIn(0, 255),
+        (Color.blue(accentColor) * factor).toInt().coerceIn(0, 255)
+    )
     private val attachmentContext = StringBuilder()
     private var attachmentCount = 0
     private var webContext = ""
@@ -204,8 +210,8 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         Button(this).apply {
             text = textValue; isAllCaps = false; textSize = 12f
             typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
-            background = panel(if (accent) Color.rgb(181,20,29) else Color.rgb(27,27,30),
-                if (accent) Color.rgb(239,65,73) else Color.rgb(65,65,70), 15)
+            background = panel(if (accent) accentShade(.72f) else Color.rgb(27,27,30),
+                if (accent) accentColor else Color.rgb(65,65,70), 15)
             minHeight = dp(46); setPadding(dp(10),0,dp(10),0)
             elevation = dp(2).toFloat()
             setOnClickListener { action() }
@@ -259,7 +265,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             typeface = Typeface.create("sans-serif-black",Typeface.BOLD)
             setTextColor(Color.WHITE)
         })
-        brand.addView(tv("LOCAL AI STUDIO",10f,Color.rgb(241,61,70)).apply {
+        brand.addView(tv("LOCAL AI STUDIO",10f,accentColor).apply {
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = .12f
         })
@@ -276,11 +282,11 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         val creator = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = panel(Color.rgb(16,12,13),Color.rgb(92,31,36),18)
+            background = panel(Color.rgb(16,12,13),accentShade(.38f),18)
             setPadding(dp(13),dp(8),dp(8),dp(8))
         }
         val creatorText = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        creatorText.addView(tv("CREATED WITH LOVE & TRUTH",9f,Color.rgb(240,67,76)).apply {
+        creatorText.addView(tv("CREATED WITH LOVE & TRUTH",9f,accentColor).apply {
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = .12f
         })
@@ -297,9 +303,9 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18),dp(16),dp(18),dp(16))
-            background = panel(Color.rgb(18,17,19),Color.rgb(87,31,36),24)
+            background = panel(Color.rgb(18,17,19),accentShade(.36f),24)
         }
-        hero.addView(tv("REDUI • REDAI",10f,Color.rgb(242,63,72)).apply {
+        hero.addView(tv("REDUI • REDAI",10f,accentColor).apply {
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = .16f
         })
@@ -373,7 +379,7 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         // Hands-free bar
         val live = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            background = panel(Color.rgb(14,12,13),Color.rgb(76,29,34),18)
+            background = panel(Color.rgb(14,12,13),accentShade(.34f),18)
             setPadding(dp(10),dp(4),dp(6),dp(4))
         }
         voiceState = tv("HANDS-FREE OFF",11f,Color.rgb(210,210,215)).apply {
@@ -419,11 +425,6 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             Toast.makeText(this,"Galaxy A12 performance preset saved • 2048 context • 4 threads • streaming",Toast.LENGTH_SHORT).show()
         },LinearLayout.LayoutParams(0,dp(44),1f))
         content.addView(toolsRow)
-
-        content.addView(tv("Red A I • Qwen3-1.7B • personalized intelligence • Q4_K_M",10f,Color.rgb(130,130,136)).apply {
-            gravity = Gravity.CENTER
-            setPadding(0,dp(10),0,0)
-        })
 
         scroll.addView(content)
         root.addView(scroll,FrameLayout.LayoutParams(-1,-1))
@@ -968,17 +969,64 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
             }.show()
     }
 
+    private fun showThemeColors() {
+        val choices = listOf(
+            "Red • Original" to Color.rgb(227, 27, 35),
+            "Blue" to Color.rgb(45, 125, 245),
+            "Purple" to Color.rgb(153, 92, 230),
+            "Teal" to Color.rgb(0, 160, 150),
+            "Green" to Color.rgb(45, 170, 90),
+            "Orange" to Color.rgb(238, 125, 35),
+            "Gold" to Color.rgb(205, 160, 45),
+            "Pink" to Color.rgb(225, 75, 145),
+            "White / Silver" to Color.rgb(190, 195, 205)
+        )
+        val selected = choices.indexOfFirst { it.second == accentColor }
+        AlertDialog.Builder(this)
+            .setTitle("Chat & UI colour")
+            .setSingleChoiceItems(choices.map { it.first }.toTypedArray(), selected) { dialog, which ->
+                prefs.edit().putInt("accent_color", choices[which].second).apply()
+                dialog.dismiss()
+                recreate()
+            }
+            .setNeutralButton("CUSTOM HEX") { _, _ ->
+                val field = EditText(this).apply {
+                    hint = "#RRGGBB"
+                    setSingleLine(true)
+                    setText(String.format(Locale.US, "#%06X", 0xFFFFFF and accentColor))
+                    setPadding(dp(14), dp(10), dp(14), dp(10))
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("Custom accent colour")
+                    .setMessage("Enter a hex colour, for example #24A6D8.")
+                    .setView(field)
+                    .setNegativeButton("CANCEL", null)
+                    .setPositiveButton("APPLY") { _, _ ->
+                        try {
+                            val value = Color.parseColor(field.text.toString().trim())
+                            prefs.edit().putInt("accent_color", value).apply()
+                            recreate()
+                        } catch (_: IllegalArgumentException) {
+                            Toast.makeText(this, "Please enter a valid colour such as #24A6D8.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    .show()
+            }
+            .setNegativeButton("CLOSE", null)
+            .show()
+    }
+
     private fun showSettings(){
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(22),dp(4),dp(22),dp(4))}
-        box.addView(tv("REDUI SETTINGS",11f,Color.rgb(235,48,58)).apply{typeface=Typeface.DEFAULT_BOLD;letterSpacing=.12f})
-        box.addView(button("PERSONALIZE"){showPersonalize()})
+        box.addView(tv("REDUI SETTINGS",11f,accentColor).apply{typeface=Typeface.DEFAULT_BOLD;letterSpacing=.12f})
+        box.addView(button("PERSONALIZE"){showPersonalize()})\n        box.addView(button("CHAT & UI COLOUR"){showThemeColors()})
         box.addView(button("VOICE CHOICES"){showVoiceChoices()})
         box.addView(button("ATTACH FILES / IMAGES"){pickAttachments.launch(arrayOf("*/*"))})
         box.addView(button("CLEAR ATTACHMENTS"){clearAttachments()})
         box.addView(tv("AUTO WEB ACCESS • ON",11f,Color.rgb(235,48,58)).apply{setPadding(0,dp(10),0,dp(10));typeface=Typeface.DEFAULT_BOLD})
         box.addView(button("TALK LIVE"){toggleHandsFree()})
         box.addView(button("BEST PERFORMANCE"){prefs.edit().putBoolean("best_performance",true).apply();Toast.makeText(this,"Galaxy A12 performance preset saved.",Toast.LENGTH_SHORT).show()})
-        box.addView(tv("Red A I • Qwen3-1.7B + Red’s Ways Of Thinking • Q4_K_M",11f,Color.LTGRAY).apply{setPadding(0,dp(10),0,dp(6))})
+        box.addView(tv("RedAI • Red’s Ways Of Thinking • Local GGUF",11f,Color.LTGRAY).apply{setPadding(0,dp(10),0,dp(6))})
         box.addView(tv("Created by Little Red Big Smile — Red A I",12f,Color.WHITE).apply{setPadding(0,dp(8),0,dp(4));setOnClickListener{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.youtube.com/@Little-Red-Big-Smile")))}})
         box.addView(tv("YouTube • Little Red Big Smile",11f,Color.rgb(235,48,58)))
         AlertDialog.Builder(this).setTitle("RedUI • Settings").setView(box).setPositiveButton("DONE",null).show()
