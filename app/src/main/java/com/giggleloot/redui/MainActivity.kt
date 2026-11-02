@@ -1177,7 +1177,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
 
     private fun availableEnglishVoices(): List<android.speech.tts.Voice> {
         if (!ttsReady) return emptyList()
-        return tts.voices.filter { it.locale.language == Locale.ENGLISH.language }
+        return tts.voices.filter { it.locale.language == Locale.ENGLISH.language && !it.name.contains("kathleen", ignoreCase = true) }
             .sortedWith(compareBy<android.speech.tts.Voice>({ it.isNetworkConnectionRequired }, { it.locale.toLanguageTag() }, { it.name }))
             .distinctBy { it.name }
     }
