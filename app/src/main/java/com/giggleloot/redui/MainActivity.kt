@@ -221,213 +221,149 @@ Do not claim internet access, file access, image understanding, tools, sensors, 
         TextView(this).apply { text=s; textSize=size; setTextColor(color) }
 
     private fun buildUi() {
-        val root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(3,3,4)) }
-        wallpaper = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            alpha = .12f
-            visibility = View.VISIBLE
+        window.statusBarColor = Color.rgb(8, 8, 10)
+        window.navigationBarColor = Color.rgb(5, 5, 7)
+        val root = FrameLayout(this).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(17, 13, 17), Color.rgb(5, 6, 9), Color.rgb(10, 8, 12)))
         }
-        root.addView(wallpaper, FrameLayout.LayoutParams(-1,-1))
-
-        val overlay = View(this).apply {
-            setBackgroundColor(Color.rgb(3,3,4))
-            alpha = .48f
-        }
-        root.addView(overlay, FrameLayout.LayoutParams(-1,-1))
-
-        val scroll = ScrollView(this).apply { clipToPadding = false }
-        val content = LinearLayout(this).apply {
+        wallpaper = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = .10f }
+        root.addView(wallpaper, FrameLayout.LayoutParams(-1, -1))
+        root.addView(View(this).apply { setBackgroundColor(Color.rgb(5, 5, 7)); alpha = .48f }, FrameLayout.LayoutParams(-1, -1))
+        val shell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14),dp(10),dp(14),dp(18))
+            setPadding(dp(15), dp(8), dp(15), dp(8))
         }
+        root.addView(shell, FrameLayout.LayoutParams(-1, -1))
 
-        // Premium header / identity
         val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2),dp(3),dp(2),dp(9))
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(2), dp(5), dp(2), dp(10))
         }
-
         val mark = ImageView(this).apply {
-            setImageResource(R.drawable.redui_logo)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = "RedUI logo"
+            setImageResource(R.drawable.redui_logo); scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "RedAI logo"
         }
-        header.addView(mark,LinearLayout.LayoutParams(dp(54),dp(54)))
+        header.addView(mark, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val identity = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(11), 0, dp(6), 0) }
+        identity.addView(TextView(this).apply {
+            text = "RedAI"; textSize = 27f
+            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
+            setTextColor(Color.WHITE); letterSpacing = -.035f
+        })
+        identity.addView(tv("PRIVATE INTELLIGENCE STUDIO", 9f, accentColor).apply {
+            typeface = Typeface.DEFAULT_BOLD; letterSpacing = .15f
+        })
+        identity.addView(tv("Created with love by LittleRedBigSmile", 9f, Color.rgb(158, 155, 164)))
+        header.addView(identity, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(button("⋯") { showSettings() }, LinearLayout.LayoutParams(dp(48), dp(44)))
+        shell.addView(header)
+        shell.addView(View(this).apply { setBackgroundColor(accentShade(.8f)) },
+            LinearLayout.LayoutParams(-1, dp(1)).apply { bottomMargin = dp(10) })
 
-        val brand = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(11),0,dp(6),0)
-        }
-        brand.addView(TextView(this).apply {
-            text = "RedUI"
-            textSize = 28f
-            typeface = Typeface.create("sans-serif-black",Typeface.BOLD)
-            setTextColor(Color.WHITE)
-        })
-        brand.addView(tv("LOCAL AI STUDIO",10f,accentColor).apply {
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = .12f
-        })
-        header.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
-        header.addView(button("SETTINGS"){showSettings()},LinearLayout.LayoutParams(dp(86),dp(44)))
-        content.addView(header)
-        val nav = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        nav.addView(button("CHATS"){showSavedChats()},LinearLayout.LayoutParams(0,dp(44),1f).apply{rightMargin=dp(6)})
-        nav.addView(button("VOICE STUDIO",true){showVoiceChoices()},LinearLayout.LayoutParams(0,dp(44),1f).apply{rightMargin=dp(6)})
-        nav.addView(button("IMPORT GGUF"){pickModel.launch(arrayOf("application/octet-stream","application/x-gguf","*/*"))},LinearLayout.LayoutParams(0,dp(44),1f))
-        content.addView(nav,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
-
-        // Creator strip — intentionally near the top so the app identity is never buried.
-        val creator = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = panel(Color.rgb(16,12,13),accentShade(.38f),18)
-            setPadding(dp(13),dp(8),dp(8),dp(8))
-        }
-        val creatorText = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        creatorText.addView(tv("CREATED WITH LOVE & TRUTH",9f,accentColor).apply {
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = .12f
-        })
-        creatorText.addView(tv("LITTLE RED BIG SMILE",13f,Color.WHITE).apply {
-            typeface = Typeface.DEFAULT_BOLD
-        })
-        creator.addView(creatorText,LinearLayout.LayoutParams(0,-2,1f))
-        creator.addView(button("▶ YOUTUBE",true) {
-            startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://www.youtube.com/@Little-Red-Big-Smile")))
-        },LinearLayout.LayoutParams(dp(116),dp(44)))
-        content.addView(creator,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)})
-
-        // Hero / quick-start card
-        val hero = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18),dp(16),dp(18),dp(16))
-            background = panel(Color.rgb(18,17,19),accentShade(.36f),24)
-        }
-        hero.addView(tv("REDUI • REDAI",10f,accentColor).apply {
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = .16f
-        })
-        hero.addView(tv("A creative studio in your pocket.",23f,Color.WHITE).apply {
-            typeface = Typeface.create("sans-serif-black",Typeface.BOLD)
-            setPadding(0,dp(4),0,0)
-        })
-        hero.addView(tv("Your local AI workspace for conversation, voice, ideas and creation.",13f,Color.rgb(196,190,194)).apply {
-            setPadding(0,dp(5),0,dp(12))
-        })
-        val heroButtons = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        heroButtons.addView(button("START LIVE CHAT",true){toggleHandsFree()},LinearLayout.LayoutParams(0,dp(48),1f))
-        heroButtons.addView(Space(this),LinearLayout.LayoutParams(dp(8),1))
-        heroButtons.addView(button("CHOOSE A VOICE"){showVoiceChoices()},LinearLayout.LayoutParams(0,dp(48),1f))
-        hero.addView(heroButtons)
-        content.addView(hero,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)})
-
-        // Model card
         val modelCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = panel(Color.rgb(11,11,13),Color.rgb(45,45,49),20)
-            setPadding(dp(12),dp(11),dp(12),dp(11))
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            background = panel(Color.rgb(17, 17, 21), accentShade(.30f), 17)
+            setPadding(dp(11), dp(3), dp(5), dp(3))
         }
-        val modelHead = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val modelTitle = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        modelTitle.addView(tv("MODEL",10f,Color.GRAY).apply {
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = .13f
+        val modelLabel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        modelLabel.addView(tv("ACTIVE BRAIN", 8f, Color.rgb(142, 139, 149)).apply {
+            typeface = Typeface.DEFAULT_BOLD; letterSpacing = .15f
         })
-        modelTitle.addView(tv("Local GGUF engine",12f,Color.WHITE).apply { typeface=Typeface.DEFAULT_BOLD })
-        modelHead.addView(modelTitle,LinearLayout.LayoutParams(0,-2,1f))
-        modelHead.addView(button("IMPORT",false){
-            pickModel.launch(arrayOf("application/octet-stream","application/x-gguf","*/*"))
-        },LinearLayout.LayoutParams(dp(92),dp(42)))
-        modelCard.addView(modelHead)
-
-        spinner = Spinner(this)
-        modelCard.addView(spinner,LinearLayout.LayoutParams(-1,dp(50)).apply{topMargin=dp(5)})
-        modelCard.addView(button("DELETE SELECTED MODEL"){ deleteSelectedModel() },LinearLayout.LayoutParams(-1,dp(44)).apply{topMargin=dp(4)})
-        content.addView(modelCard,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)})
-
-        status = tv("LOCAL • starting…",11f,Color.rgb(205,205,210)).apply {
-            typeface = Typeface.DEFAULT_BOLD
-            background = panel(Color.rgb(9,9,10),Color.rgb(56,56,61),14)
-            setPadding(dp(12),dp(8),dp(12),dp(8))
+        modelLabel.addView(tv("Local GGUF", 12f, Color.WHITE).apply { typeface = Typeface.DEFAULT_BOLD })
+        modelCard.addView(modelLabel, LinearLayout.LayoutParams(dp(92), -2))
+        spinner = Spinner(this).apply {
+            background = panel(Color.rgb(24, 23, 28), Color.rgb(59, 56, 65), 13)
+            setPadding(dp(5), 0, dp(5), 0)
         }
-        content.addView(status,LinearLayout.LayoutParams(-1,dp(40)).apply{bottomMargin=dp(6)})
+        modelCard.addView(spinner, LinearLayout.LayoutParams(0, dp(43), 1f).apply { rightMargin = dp(6) })
+        modelCard.addView(button("＋ MODEL", true) {
+            pickModel.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*"))
+        }, LinearLayout.LayoutParams(dp(104), dp(42)))
+        shell.addView(modelCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
 
-        // Chat area
-        val chatCard = LinearLayout(this).apply {
+        status = tv("Preparing your private studio…", 10f, Color.rgb(192, 190, 198)).apply {
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            background = panel(Color.rgb(11, 12, 15), Color.rgb(44, 45, 52), 13)
+            setPadding(dp(11), dp(7), dp(11), dp(7))
+        }
+        shell.addView(status, LinearLayout.LayoutParams(-1, dp(32)).apply { bottomMargin = dp(8) })
+
+        val conversation = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = panel(Color.argb(190,9,9,11),Color.rgb(38,38,42),20)
-            setPadding(dp(8),dp(8),dp(8),dp(8))
+            background = panel(Color.argb(218, 11, 11, 15), Color.rgb(43, 41, 49), 22)
+            setPadding(dp(8), dp(8), dp(8), dp(7))
         }
-        chatCard.addView(tv("CONVERSATION",9f,Color.rgb(151,151,158)).apply {
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = .12f
-            setPadding(dp(5),dp(1),0,dp(3))
+        val conversationHead = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(7), dp(3), dp(7), dp(7))
+        }
+        conversationHead.addView(tv("YOUR CONVERSATION", 9f, Color.rgb(151, 148, 158)).apply {
+            typeface = Typeface.DEFAULT_BOLD; letterSpacing = .13f
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        conversationHead.addView(tv("● PRIVATE", 8f, accentColor).apply {
+            typeface = Typeface.DEFAULT_BOLD; letterSpacing = .08f
         })
+        conversation.addView(conversationHead)
         rv = RecyclerView(this).apply {
-            clipToPadding = false
-            setPadding(dp(2),dp(3),dp(2),dp(4))
+            clipToPadding = false; setPadding(dp(3), dp(4), dp(3), dp(5))
             layoutManager = LinearLayoutManager(this@MainActivity)
-            setBackgroundColor(Color.TRANSPARENT)
+            setBackgroundColor(Color.TRANSPARENT); itemAnimator = null
         }
-        adapter = ChatAdapter(msgs,prefs)
+        adapter = ChatAdapter(msgs, prefs)
         rv.adapter = adapter
-        chatCard.addView(rv,LinearLayout.LayoutParams(-1,dp(340)))
-        content.addView(chatCard,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(9)})
+        conversation.addView(rv, LinearLayout.LayoutParams(-1, 0, 1f))
+        shell.addView(conversation, LinearLayout.LayoutParams(-1, 0, 1f).apply { bottomMargin = dp(8) })
 
-        // Hands-free bar
         val live = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            background = panel(Color.rgb(14,12,13),accentShade(.34f),18)
-            setPadding(dp(10),dp(4),dp(6),dp(4))
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            background = panel(Color.rgb(16, 14, 19), accentShade(.34f), 16)
+            setPadding(dp(12), dp(3), dp(5), dp(3))
         }
-        voiceState = tv("HANDS-FREE OFF",11f,Color.rgb(210,210,215)).apply {
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = .04f
+        voiceState = tv("VOICE READY  ·  HANDS-FREE OFF", 9f, Color.rgb(207, 204, 212)).apply {
+            typeface = Typeface.DEFAULT_BOLD; letterSpacing = .04f
         }
-        live.addView(voiceState,LinearLayout.LayoutParams(0,dp(42),1f))
-        live.addView(button("TALK LIVE",true){toggleHandsFree()},LinearLayout.LayoutParams(dp(116),dp(44)))
-        content.addView(live,LinearLayout.LayoutParams(-1,dp(52)).apply{bottomMargin=dp(7)})
+        live.addView(voiceState, LinearLayout.LayoutParams(0, dp(39), 1f))
+        live.addView(button("GO LIVE", true) { toggleHandsFree() }, LinearLayout.LayoutParams(dp(100), dp(40)))
+        shell.addView(live, LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(7) })
 
-        // Composer
+        attachmentState = tv("＋  ADD A FILE OR IMAGE", 9f, Color.rgb(153, 150, 160)).apply {
+            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(5), 0, dp(5), dp(4))
+            setOnClickListener { pickAttachments.launch(arrayOf("*/*")) }
+        }
+        shell.addView(attachmentState, LinearLayout.LayoutParams(-1, dp(24)))
+
         val composer = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            background = panel(Color.rgb(17,17,19),Color.rgb(58,58,63),22)
-            setPadding(dp(8),dp(4),dp(6),dp(4))
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            background = panel(Color.rgb(22, 21, 26), accentShade(.43f), 20)
+            setPadding(dp(7), dp(5), dp(6), dp(5))
         }
         input = EditText(this).apply {
-            hint = "Message RedAI…"
-            textSize = 16f
-            background = null
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
-            maxLines = 3
-            setPadding(dp(7),0,dp(7),0)
+            hint = "Message RedAI…"; textSize = 15f; background = null
+            setTextColor(Color.WHITE); setHintTextColor(Color.rgb(132, 130, 140))
+            maxLines = 4; minLines = 1; setPadding(dp(9), dp(4), dp(5), dp(4))
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEND
         }
-        composer.addView(input,LinearLayout.LayoutParams(0,dp(60),1f))
-        composer.addView(button("＋",false){pickAttachments.launch(arrayOf("*/*"))},LinearLayout.LayoutParams(dp(48),dp(46)))
-        composer.addView(button("SEND",true){send(false)},LinearLayout.LayoutParams(dp(78),dp(46)))
-        attachmentState = tv("NO ATTACHMENTS",9f,Color.rgb(145,145,152)).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(dp(6),0,dp(6),0) }
-        content.addView(attachmentState,LinearLayout.LayoutParams(-1,dp(28)))
-        content.addView(composer,LinearLayout.LayoutParams(-1,dp(68)).apply{bottomMargin=dp(10)})
+        composer.addView(input, LinearLayout.LayoutParams(0, dp(54), 1f))
+        composer.addView(button("＋") { pickAttachments.launch(arrayOf("*/*")) }, LinearLayout.LayoutParams(dp(43), dp(44)))
+        composer.addView(button("SEND", true) { send(false) }, LinearLayout.LayoutParams(dp(76), dp(44)))
+        shell.addView(composer, LinearLayout.LayoutParams(-1, dp(64)).apply { bottomMargin = dp(7) })
 
-        // Utility buttons
-        val toolsRow = LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        toolsRow.addView(button("NEW CHAT"){startNewChat()},LinearLayout.LayoutParams(0,dp(44),1f))
-        toolsRow.addView(Space(this),LinearLayout.LayoutParams(dp(7),1))
-        toolsRow.addView(button("AUTO WEB • ON"){Toast.makeText(this,"Red A I searches automatically when a question needs fresh information.",Toast.LENGTH_SHORT).show()},LinearLayout.LayoutParams(0,dp(44),1f))
-        toolsRow.addView(Space(this),LinearLayout.LayoutParams(dp(7),1))
-        toolsRow.addView(button("PERSONALIZE"){showPersonalize()},LinearLayout.LayoutParams(0,dp(44),1f))
-        toolsRow.addView(Space(this),LinearLayout.LayoutParams(dp(7),1))
-        toolsRow.addView(button("PERFORMANCE"){
-            prefs.edit().putBoolean("best_performance",true).apply()
-            Toast.makeText(this,"Galaxy A12 performance preset saved • 2048 context • 4 threads • streaming",Toast.LENGTH_SHORT).show()
-        },LinearLayout.LayoutParams(0,dp(44),1f))
-        content.addView(toolsRow)
-
-        scroll.addView(content)
-        root.addView(scroll,FrameLayout.LayoutParams(-1,-1))
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+        }
+        val actionItems = listOf(
+            "CHATS" to { showSavedChats() },
+            "VOICE" to { showVoiceChoices() },
+            "THEME" to { showThemeColors() },
+            "TOOLS" to { showSettings() }
+        )
+        actionItems.forEachIndexed { index, item ->
+            actions.addView(button(item.first, index == 3, item.second), LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                if (index < actionItems.lastIndex) rightMargin = dp(6)
+            })
+        }
+        shell.addView(actions, LinearLayout.LayoutParams(-1, dp(44)))
         setContentView(root)
     }
 
