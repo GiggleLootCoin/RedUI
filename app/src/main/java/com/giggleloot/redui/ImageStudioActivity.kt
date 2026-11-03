@@ -182,7 +182,7 @@ class ImageStudioActivity : AppCompatActivity() {
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sample = 1
-        while (bounds.outWidth / sample > maxSide * 2 || bounds.outHeight / sample > maxSide * 2) {
+        while (bounds.outWidth / sample > maxSide || bounds.outHeight / sample > maxSide) {
             sample *= 2
         }
         return BitmapFactory.decodeByteArray(
