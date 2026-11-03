@@ -249,11 +249,13 @@ jobs:
           grep -q 'PrivateMediaStore.loadBitmap' app/src/main/java/com/giggleloot/redui/ChatAdapter.kt
           grep -q 'AndroidKeyStore' app/src/main/java/com/giggleloot/redui/LocalVault.kt
           grep -q 'AES/GCM/NoPadding' app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          grep -q '.setKeySize(256)' app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          grep -q '.setUnlockedDeviceRequired(true)' app/src/main/java/com/giggleloot/redui/LocalVault.kt
           grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/ChatSessionStore.kt
           grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/MemoryStore.kt
           grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/UserPersonaStore.kt
           grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
-          grep -q 'LocalVault.writeBytes' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
+          grep -q 'PrivateMediaStore.importBytes' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
           grep -q 'LocalVault.writeBytes' app/src/main/java/com/giggleloot/redui/ImageStudioActivity.kt
           grep -q 'createOnDeviceSpeechRecognizer' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'class CharacterProfileStore' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
@@ -273,7 +275,7 @@ jobs:
           grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'tools:node="remove"' app/src/main/AndroidManifest.xml
-          if grep -R -E 'HttpURLConnection|HttpsURLConnection|OkHttpClient|Retrofit|WebView|TextToSpeech|aihorde.net|Galaxy|Samsung|SM-A125|Exynos' app/src/main/java; then
+          if grep -R -E 'HttpURLConnection|HttpsURLConnection|OkHttpClient|Retrofit|WebView|TextToSpeech|aihorde.net|Galaxy|Samsung|SM-A125|Exynos|Android 12' app/src/main/java; then
             echo "Unexpected network/remote voice path or device-specific label found in app sources."
             exit 1
           fi
