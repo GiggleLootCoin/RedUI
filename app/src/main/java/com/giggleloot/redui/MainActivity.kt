@@ -1273,7 +1273,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         box.addView(tv("REDUI VOICES • BUILT INTO THIS APP",11f,Color.rgb(240,67,76)).apply {
             typeface=Typeface.DEFAULT_BOLD; letterSpacing=.08f; setPadding(0,0,0,dp(8))
         })
-        box.addView(tv("These voices are physically included in RedUI and work offline. No Samsung voice package is required.",12f,Color.LTGRAY).apply {
+        box.addView(tv("These voices are included in RedUI and work offline without an external voice package.",12f,Color.LTGRAY).apply {
             setPadding(0,0,0,dp(10))
         })
         bundled.forEach { choice ->
