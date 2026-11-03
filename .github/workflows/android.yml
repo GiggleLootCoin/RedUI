@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: redui-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -240,6 +244,22 @@ jobs:
           grep -q 'AES/GCM/NoPadding' app/src/main/java/com/giggleloot/redui/WebSearchService.kt
           grep -q 'webSearch.search(prompt, webProvider)' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'Sources (live search)' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'CharacterStudioActivity' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'ImageStudioActivity' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'activeProfile()?.toPromptContext()' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'character_id' app/src/main/java/com/giggleloot/redui/ChatSessionStore.kt
+          grep -q 'class CharacterProfileStore' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
+          grep -q 'chara_card_v2' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
+          grep -q 'class CharacterStudioActivity' app/src/main/java/com/giggleloot/redui/CharacterStudioActivity.kt
+          grep -q 'class ImageStudioActivity' app/src/main/java/com/giggleloot/redui/ImageStudioActivity.kt
+          grep -q 'class AiHordeImageService' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
+          grep -q 'source_processing' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
+          grep -q 'class AttachmentReader' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
+          grep -q 'readPdf' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
+          grep -q 'versionCode = 162' app/build.gradle.kts
+          grep -q 'com.google.mlkit:image-labeling:17.0.9' app/build.gradle.kts
+          grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
+          grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml
           echo "Checking APK contains every real bundled TTS model, tokens, espeak data, test WAV, and core assets:"
           unzip -l "$APK" | grep -q "assets/espeak-ng-data/en_dict"
           unzip -l "$APK" | grep -q "assets/kitten-mini/model.onnx"
