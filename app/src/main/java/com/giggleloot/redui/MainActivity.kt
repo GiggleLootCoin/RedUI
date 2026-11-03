@@ -121,6 +121,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var webSearchEnabled = true
     private var webProvider = "purili"
     private val webSearch by lazy { WebSearchService(this) }
+    private val attachmentReader by lazy { AttachmentReader(this) }
     private lateinit var attachmentState: TextView
 
     private val redAiSystemPrompt = """
@@ -390,14 +391,16 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         }
         val actionItems = listOf(
             "CHATS" to { showSavedChats() },
+            "CAST" to { startActivity(Intent(this, CharacterStudioActivity::class.java)) },
+            "CREATE" to { startActivity(Intent(this, ImageStudioActivity::class.java)) },
             "VOICE" to { showVoiceChoices() },
-            "THEME" to { showThemeColors() },
             "TOOLS" to { showSettings() }
         )
         actionItems.forEachIndexed { index, item ->
-            actions.addView(button(item.first, index == 3, item.second), LinearLayout.LayoutParams(0, dp(42), 1f).apply {
-                if (index < actionItems.lastIndex) rightMargin = dp(6)
-            })
+            actions.addView(button(item.first, index == 4, item.second).apply { textSize = 9f; setPadding(0, 0, 0, 0) },
+                LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                    if (index < actionItems.lastIndex) rightMargin = dp(4)
+                })
         }
         shell.addView(actions, LinearLayout.LayoutParams(-1, dp(44)))
         setContentView(root)
@@ -847,6 +850,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
     private fun buildPrompt(userPrompt:String):String {
         val messages = mutableListOf<Pair<String,String>>()
         messages.add("system" to redAiSystemPrompt)
+        CharacterProfileStore(this).activeProfile()?.toPromptContext()?.takeIf { it.isNotBlank() }?.let { messages.add("system" to it) }
         val waysContext = relevantWaysOfThinking(userPrompt)
         if (waysContext.isNotBlank()) messages.add("system" to waysContext)
         if (attachmentContext.isNotBlank()) messages.add("system" to "User attachments available for this conversation:\n" + attachmentContext.toString().takeLast(18000))
@@ -877,6 +881,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
 
     private fun cleanForSpeech(s: String) = cleanForDisplay(s)
     private fun speak(s:String){
+        localVoiceKey = prefs.getString("local_voice_key", localVoiceKey) ?: localVoiceKey
         if(s.isBlank()){if(handsFree)startListening();return}
         val clean = cleanForSpeech(s)
         if (localVoiceKey == "android") speakWithAndroidTts(clean) else speakWithLocalVoice(clean)
@@ -1337,31 +1342,30 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             var count = 0
             for (uri in uris.take(8)) {
                 try {
-                    val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else "attachment" } ?: "attachment"
+                    val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                        ?.use { if (it.moveToFirst()) it.getString(0) else "attachment" } ?: "attachment"
                     val mime = contentResolver.getType(uri) ?: ""
-                    if (mime.startsWith("image/")) {
-                        val image = InputImage.fromFilePath(this@MainActivity, uri)
-                        val result = Tasks.await(TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).process(image))
-                        val ocr = result.text.trim()
-                        added.append("\n[IMAGE: ").append(name).append("]\n")
-                        if (ocr.isNotBlank()) added.append("OCR text:\n").append(ocr.take(8000)).append("\n")
-                        else added.append("No readable text was detected. Red A I is text-only and cannot inspect image pixels directly.\n")
-                    } else if (mime.startsWith("text/") || name.endsWith(".txt",true) || name.endsWith(".md",true) || name.endsWith(".csv",true) || name.endsWith(".json",true) || name.endsWith(".xml",true) || name.endsWith(".html",true) || name.endsWith(".kt",true) || name.endsWith(".py",true) || name.endsWith(".java",true)) {
-                        val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText().take(12000) } ?: ""
-                        added.append("\n[FILE: ").append(name).append("]\n").append(text).append("\n")
+                    val result = if (mime.startsWith("image/") || name.substringAfterLast('.', "").lowercase() in setOf("png", "jpg", "jpeg", "webp")) {
+                        attachmentReader.readImage(uri, name)
                     } else {
-                        added.append("\n[FILE: ").append(name).append("]\nType: ").append(mime.ifBlank { "unknown" }).append(". This file is attached, but Red A I needs extracted text to analyse its contents.\n")
+                        attachmentReader.readDocument(uri, name, mime)
                     }
+                    added.append("\n").append(result).append("\n")
                     count++
-                } catch (_: Throwable) {
-                    added.append("\n[ATTACHMENT ERROR]\nCould not read one selected file safely.\n")
+                } catch (error: Throwable) {
+                    added.append("\n[ATTACHMENT ERROR]\n")
+                        .append("Could not process the selected file: ")
+                        .append(error.message ?: error.javaClass.simpleName)
+                        .append("\n")
                 }
             }
             withContext(Dispatchers.Main) {
                 attachmentContext.append(added)
                 attachmentCount += count
-                attachmentState.text = if (attachmentCount == 0) "NO ATTACHMENTS" else attachmentCount.toString() + " ATTACHMENT(S) READY • TAP ＋ TO ADD MORE"
-                status.text = if (attachmentCount == 0) "FILES • nothing imported" else "FILES • " + attachmentCount + " ready for Red A I"
+                attachmentState.text = if (attachmentCount == 0) "NO ATTACHMENTS" else
+                    attachmentCount.toString() + " ATTACHMENT(S) READY • TAP ＋ TO ADD MORE"
+                status.text = if (attachmentCount == 0) "FILES • nothing imported" else
+                    "FILES • " + attachmentCount + " ready for RedAI"
             }
         }
     }
