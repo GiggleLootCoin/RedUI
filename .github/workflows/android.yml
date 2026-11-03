@@ -275,7 +275,7 @@ jobs:
           grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'tools:node="remove"' app/src/main/AndroidManifest.xml
-          if grep -R -E 'HttpURLConnection|HttpsURLConnection|OkHttpClient|Retrofit|WebView|TextToSpeech|aihorde.net|Galaxy|Samsung|SM-A125|Exynos|Android 12' app/src/main/java; then
+          if grep -R -E 'HttpURLConnection|HttpsURLConnection|OkHttpClient|Retrofit|WebView|TextToSpeech|aihorde.net|Galaxy|Samsung|SM-A125|Exynos|Android 12|Android system voice|Android live voice' app/src/main/java; then
             echo "Unexpected network/remote voice path or device-specific label found in app sources."
             exit 1
           fi
