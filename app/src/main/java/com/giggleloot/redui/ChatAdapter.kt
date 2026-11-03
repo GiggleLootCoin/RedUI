@@ -110,6 +110,7 @@ class ChatAdapter(
         holder.label.text = if (user) "YOU" else "RED AI"
         holder.label.setTextColor(if (user) mix(accent, Color.WHITE, .55f) else accent)
         holder.text.text = item.text
+        Linkify.addLinks(holder.text, Linkify.WEB_URLS)
         holder.text.autoLinkMask = Linkify.WEB_URLS
         holder.text.movementMethod = LinkMovementMethod.getInstance()
         holder.text.setLinkTextColor(accent)
