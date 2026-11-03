@@ -2,6 +2,8 @@ package com.giggleloot.redui
 
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.graphics.Typeface
 import android.os.Bundle
 import android.view.Gravity
@@ -87,6 +89,8 @@ class CharacterStudioActivity : AppCompatActivity() {
         top.addView(action("IMPORT CARD") { importCard.launch(arrayOf("application/json", "text/plain", "*/*")) },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply { leftMargin = dp(7) })
         root.addView(top)
+        root.addView(action("EDIT MY USER PROFILE • PRIVATE AND OPTIONAL") { editUserProfile() },
+            LinearLayout.LayoutParams(-1, dp(45)).apply { topMargin = dp(8) })
         root.addView(text("YOUR CHARACTERS", 10f, Color.rgb(220, 55, 65)).apply {
             typeface = Typeface.DEFAULT_BOLD
             setPadding(0, dp(17), 0, dp(8))
@@ -117,12 +121,27 @@ class CharacterStudioActivity : AppCompatActivity() {
                 setPadding(dp(12))
                 setBackgroundColor(Color.rgb(24, 22, 27))
             }
-            card.addView(text(profile.name + if (profile.id == active) "  •  ACTIVE" else "", 16f, Color.WHITE).apply {
+            val hero = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            val avatar = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setBackgroundColor(Color.rgb(42, 39, 45))
+            }
+            val avatarBitmap = runCatching {
+                val uri = Uri.parse(profile.avatarUri)
+                contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+            }.getOrNull()
+            if (avatarBitmap != null) avatar.setImageBitmap(avatarBitmap)
+            else avatar.setImageResource(android.R.drawable.ic_menu_myplaces)
+            hero.addView(avatar, LinearLayout.LayoutParams(dp(66), dp(66)))
+            val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, 0, 0) }
+            info.addView(text(profile.name + if (profile.id == active) "  •  ACTIVE" else "", 16f, Color.WHITE).apply {
                 typeface = Typeface.DEFAULT_BOLD
             })
-            card.addView(text(profile.description.ifBlank { profile.personality }.take(220), 11f).apply {
-                setPadding(0, dp(5), 0, dp(7))
+            info.addView(text(profile.description.ifBlank { profile.personality }.take(220), 11f).apply {
+                setPadding(0, dp(5), 0, dp(3))
             })
+            hero.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+            card.addView(hero)
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             row.addView(action(if (profile.id == active) "ACTIVE" else "USE") {
                 store.setActive(profile)
@@ -134,6 +153,54 @@ class CharacterStudioActivity : AppCompatActivity() {
             card.addView(row)
             list.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
         }
+    }
+
+    private fun editUserProfile() {
+        val store = UserPersonaStore(this)
+        val current = store.load()
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), dp(10))
+        }
+        fun add(label: String, value: String, hint: String, multiline: Boolean): EditText {
+            content.addView(text(label, 10f, Color.rgb(232, 70, 78)).apply {
+                typeface = Typeface.DEFAULT_BOLD
+                setPadding(0, dp(9), 0, dp(4))
+            })
+            return EditText(this).apply {
+                setText(value)
+                this.hint = hint
+                setTextColor(Color.WHITE)
+                setHintTextColor(Color.GRAY)
+                textSize = 14f
+                setBackgroundColor(Color.rgb(34, 32, 38))
+                setPadding(dp(10))
+                minLines = if (multiline) 2 else 1
+                maxLines = if (multiline) 5 else 1
+                isSingleLine = !multiline
+            }.also { content.addView(it) }
+        }
+        val preferredName = add("PREFERRED NAME", current.preferredName, "How would you like this assistant to address you?", false)
+        val pronouns = add("PRONOUNS • OPTIONAL", current.pronouns, "Only add these if you want to.", false)
+        val about = add("ABOUT ME • OPTIONAL", current.about, "Background or a short description you choose to share.", true)
+        val interests = add("INTERESTS • OPTIONAL", current.interests, "Creative work, subjects, skills or hobbies.", true)
+        val communication = add("HOW I PREFER TO COMMUNICATE", current.communicationPreferences, "Tone, detail, accessibility or formatting preferences.", true)
+        val scroll = ScrollView(this).apply { addView(content) }
+        AlertDialog.Builder(this).setTitle("My private user profile")
+            .setMessage("These details are stored locally on this phone and added as context to your conversations. Leave anything blank that you do not want to share.")
+            .setView(scroll)
+            .setNegativeButton("CANCEL", null)
+            .setNeutralButton("CLEAR PROFILE") { _, _ -> store.clear(); Toast.makeText(this, "User profile cleared.", Toast.LENGTH_SHORT).show() }
+            .setPositiveButton("SAVE") { _, _ ->
+                store.save(UserPersona(
+                    preferredName.text.toString().trim(),
+                    pronouns.text.toString().trim(),
+                    about.text.toString().trim(),
+                    interests.text.toString().trim(),
+                    communication.text.toString().trim()
+                ))
+                Toast.makeText(this, "Private user profile saved.", Toast.LENGTH_SHORT).show()
+            }.show()
     }
 
     private fun showMore(profile: CharacterProfile) {
