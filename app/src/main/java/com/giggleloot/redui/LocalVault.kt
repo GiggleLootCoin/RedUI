@@ -36,8 +36,12 @@ object LocalVault {
     fun writeBytes(file: File, plaintext: ByteArray) {
         synchronized(lock) {
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.ENCRYPT_MODE, key(createIfMissing = true)
-                ?: throw IllegalStateException("The local encryption key could not be created."))
+            // Never silently replace an existing encrypted file with a newly generated key.
+            // A missing Keystore key must fail closed so the caller cannot overwrite data
+            // that is still encrypted with the unavailable key.
+            val existingVaultFile = file.isFile && file.extension.equals("enc", ignoreCase = true)
+            cipher.init(Cipher.ENCRYPT_MODE, key(createIfMissing = !existingVaultFile)
+                ?: throw IllegalStateException("The local encryption key is unavailable. Existing private data has been left untouched."))
             cipher.updateAAD(header)
             val encrypted = cipher.doFinal(plaintext)
             val encoded = ByteArray(header.size + cipher.iv.size + encrypted.size)
