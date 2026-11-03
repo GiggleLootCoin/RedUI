@@ -41,6 +41,7 @@ object PrivateMediaStore {
     }
 
     fun importBytes(context: Context, bytes: ByteArray, key: String, maxSide: Int = 1024): String {
+        require(maxSide in 64..4096) { "Invalid image size limit." }
         require(bytes.isNotEmpty() && bytes.size <= MAX_INPUT_BYTES) { "The selected image is empty or too large." }
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -79,8 +80,11 @@ object PrivateMediaStore {
         val safeKey = key.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(80)
             .ifBlank { UUID.randomUUID().toString() }
         val extension = if (png) "png" else "jpg"
+        val folder = directory(context)
         val filename = "$safeKey.$extension.enc"
-        LocalVault.writeBytes(File(directory(context), filename), output.toByteArray())
+        LocalVault.writeBytes(File(folder, filename), output.toByteArray())
+        folder.listFiles { file -> file.name.startsWith("$safeKey.") && file.name.endsWith(".enc") && file.name != filename }
+            ?.forEach { it.delete() }
         return PREFIX + filename
     }
 
