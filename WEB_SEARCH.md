@@ -28,7 +28,7 @@ Search results include titles, URLs, excerpts and provider publication dates whe
 
 The GGUF does not contain a search engine, internet client or provider credentials. RedUI calls the service outside the model. The same standalone bridge and function schema are documented in the [RedAI repository](https://github.com/GiggleLootCoin/RedAI/blob/main/WEB_SEARCH.md).
 
-ChatterUI Local Mode can still run the GGUF offline. Its published documentation does not currently document local-mode function/tool execution, so automatic external search cannot be attached to its local inference path without ChatterUI-side tool support. Other frontends can call the standalone bridge if they support application-side function/tool execution. No universal compatibility claim is made.
+ChatterUI Local Mode can still run the GGUF offline, but it cannot automatically invoke external tools. Its public tool-calling/MCP feature request (#535) was closed as “not planned” by the maintainer on 8 July 2026. Other frontends can call the standalone bridge if they support application-side function/tool execution. No universal compatibility claim is made.
 
 ## Limitations
 
