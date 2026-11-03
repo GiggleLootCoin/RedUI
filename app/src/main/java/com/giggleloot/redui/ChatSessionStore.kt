@@ -33,27 +33,29 @@ class ChatSessionStore(private val context: Context) {
     }
 
     @Synchronized
-    fun load(id:String): SavedChat? = try {
-        val key = safeId(id)
-        if (key.isBlank()) return null
-        val encrypted = File(dir,"$key.enc")
-        val legacy = File(dir,"$key.json")
-        val source = when { encrypted.isFile -> encrypted; legacy.isFile -> legacy; else -> return null }
-        val raw = LocalVault.readText(source) ?: return null
-        if (source == legacy) {
-            LocalVault.writeText(encrypted, raw)
-            legacy.delete()
-        }
-        val root=JSONObject(raw)
-        val arr=root.optJSONArray("messages") ?: JSONArray()
-        val list=buildList {
-            for(i in 0 until arr.length()) {
-                val m=arr.getJSONObject(i)
-                add(ChatMessage(m.optString("role"),m.optString("text")))
+    fun load(id:String): SavedChat? {
+        return try {
+            val key = safeId(id)
+            if (key.isBlank()) return null
+            val encrypted = File(dir,"$key.enc")
+            val legacy = File(dir,"$key.json")
+            val source = when { encrypted.isFile -> encrypted; legacy.isFile -> legacy; else -> return null }
+            val raw = LocalVault.readText(source) ?: return null
+            if (source == legacy) {
+                LocalVault.writeText(encrypted, raw)
+                legacy.delete()
             }
-        }
-        SavedChat(root.optString("id",key),root.optString("title","Conversation"),root.optLong("updated",0),list,root.optString("character_id",""))
-    } catch (_:Throwable) { null }
+            val root=JSONObject(raw)
+            val arr=root.optJSONArray("messages") ?: JSONArray()
+            val list=buildList {
+                for(i in 0 until arr.length()) {
+                    val m=arr.getJSONObject(i)
+                    add(ChatMessage(m.optString("role"),m.optString("text")))
+                }
+            }
+            SavedChat(root.optString("id",key),root.optString("title","Conversation"),root.optLong("updated",0),list,root.optString("character_id",""))
+        } catch (_:Throwable) { null }
+    }
 
     fun all(characterId:String? = null):List<SavedChat> =
         dir.listFiles { f -> f.isFile && f.extension in setOf("enc","json") }
