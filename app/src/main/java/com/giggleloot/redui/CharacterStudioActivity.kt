@@ -279,8 +279,7 @@ class CharacterStudioActivity : AppCompatActivity() {
             "Jasper • natural male" to "kitten_0", "Bella • natural female" to "kitten_1",
             "Bruno • natural male" to "kitten_2", "Luna • natural female" to "kitten_3",
             "Hugo • natural male" to "kitten_4", "Rosie • natural female" to "kitten_5",
-            "Leo • natural male" to "kitten_6", "Kiki • natural female" to "kitten_7",
-            "Android system voice" to "android"
+            "Leo • natural male" to "kitten_6", "Kiki • natural female" to "kitten_7"
         )
         content.addView(text("CHARACTER VOICE", 10f, Color.rgb(232, 70, 78)).apply {
             typeface = Typeface.DEFAULT_BOLD; setPadding(0, dp(9), 0, dp(4))
