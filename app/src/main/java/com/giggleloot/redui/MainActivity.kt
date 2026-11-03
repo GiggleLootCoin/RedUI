@@ -177,9 +177,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             try { refresh() } catch (_: Throwable) { status.text = "LOCAL • ready" }
             try { loadCurrentChat() } catch (_: Throwable) {}
 
-            // Initialize speech only after the first frame is on screen. The previous
-            // build never called initLocalVoiceEngine(), so the bundled Piper voices
-            // could never become available and every reply silently fell back to Android TTS.
+            // Load only bundled neural voices; no external speech engine is used.
             val savedVoice = prefs.getString("local_voice_key", "lessac") ?: "lessac"
             if (savedVoice == "android") prefs.edit().putString("local_voice_key", "lessac").putBoolean("local_voice", true).apply()
             initLocalVoiceEngine()
@@ -659,7 +657,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         }
         if (model==null) { status.text="LOCAL • import RedAI.gguf first"; return }
         handsFree=true; speakReplies=true; speechRetryCount=0
-        status.text = if (speechUsesOnDevice) "MIC • on-device speech recognition ready" else "MIC • system speech recognition ready"
+        status.text = "MIC • on-device speech recognition ready"
         startListening()
     }
 
@@ -711,7 +709,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             if(handsFree){speechRetryCount=0;voiceState.text=if(speechUsesOnDevice)"LISTENING • on-device • go ahead" else "LISTENING • go ahead"}
         }
         override fun onBeginningOfSpeech(){
-            if(handsFree){speechRetryCount=0;;voiceState.text="LISTENING • hearing you"}
+            if(handsFree){speechRetryCount=0;voiceState.text="LISTENING • hearing you"}
         }
         override fun onRmsChanged(v:Float){}
         override fun onBufferReceived(b:ByteArray?){}
@@ -750,9 +748,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                 if (searchRequested) withContext(Dispatchers.Main) {
                     status.text = "PRIVATE • offline • no live lookup"
                 }
-                // Galaxy A12 performance profile: keep the prompt window tight and
-                // generation bounded so the model spends less time processing old
-                // conversation while retaining enough room for useful answers.
+                // Keep the generation window bounded for modest-memory devices.
                 val temperature = prefs.getFloat("gen_temperature", .62f)
                 val maxTokens = prefs.getInt("gen_max_tokens", 160)
                 val topP = prefs.getFloat("gen_top_p", .86f)
