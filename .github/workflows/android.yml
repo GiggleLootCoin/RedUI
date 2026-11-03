@@ -251,6 +251,7 @@ jobs:
           grep -q 'AES/GCM/NoPadding' app/src/main/java/com/giggleloot/redui/LocalVault.kt
           grep -q '.setKeySize(256)' app/src/main/java/com/giggleloot/redui/LocalVault.kt
           grep -q '.setUnlockedDeviceRequired(true)' app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          grep -q 'Existing private data has been left untouched' app/src/main/java/com/giggleloot/redui/LocalVault.kt
           grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/ChatSessionStore.kt
           grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/MemoryStore.kt
           grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/UserPersonaStore.kt
