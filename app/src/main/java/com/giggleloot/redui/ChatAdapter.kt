@@ -4,7 +4,6 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.text.util.Linkify
 import android.text.method.LinkMovementMethod
 import android.view.Gravity
@@ -115,13 +114,12 @@ class ChatAdapter(
         holder.text.movementMethod = LinkMovementMethod.getInstance()
         holder.text.setLinkTextColor(accent)
         val avatarKey = if (user) "user_avatar" else "ai_avatar"
-        val uri = prefs.getString(avatarKey, null)
-        if (uri != null) {
-            try { holder.avatar.setImageURI(Uri.parse(uri)) }
-            catch (_: Exception) { holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f))) }
-        } else {
-            holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f)))
-        }
+        val reference = prefs.getString(avatarKey, null)
+        val avatarBitmap = if (reference?.startsWith("vault:") == true) {
+            runCatching { PrivateMediaStore.loadBitmap(holder.itemView.context, reference) }.getOrNull()
+        } else null
+        if (avatarBitmap != null) holder.avatar.setImageBitmap(avatarBitmap)
+        else holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f)))
         val maxBubble = (holder.row.resources.displayMetrics.widthPixels - dp(90)).coerceAtLeast(dp(180))
         val bubbleParams = LinearLayout.LayoutParams(dp(276).coerceAtMost(maxBubble), -2)
         if (user) {
