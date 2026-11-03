@@ -125,6 +125,9 @@ class CharacterProfileStore(context: Context) {
 
     fun clearActive() { profilePrefs.edit().remove("active_id").apply() }
 
+    fun importAvatar(uri: Uri): String =
+        PrivateMediaStore.importUri(appContext, uri, "character-" + UUID.randomUUID().toString(), 640)
+
     fun delete(id: String) {
         val key = safeId(id)
         if (key.isBlank()) return
@@ -143,16 +146,20 @@ class CharacterProfileStore(context: Context) {
 
     fun loadAvatar(profile: CharacterProfile): Bitmap? {
         if (profile.avatarUri.isBlank()) return null
+        if (profile.avatarUri.startsWith("vault:")) {
+            return runCatching { PrivateMediaStore.loadBitmap(appContext, profile.avatarUri) }.getOrNull()
+        }
+        // Backward compatibility for portraits imported from character-card JSON by
+        // an older RedUI build. Never open arbitrary or content-provider URIs here.
         return runCatching {
             val uri = Uri.parse(profile.avatarUri)
-            val path = uri.path
-            if (uri.scheme == "file" && !path.isNullOrBlank() &&
-                File(path).absolutePath.startsWith(avatarDirectory.absolutePath + File.separator)) {
-                val bytes = LocalVault.readBytes(File(path)) ?: return@runCatching null
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            } else {
-                appContext.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+            val path = uri.path ?: return@runCatching null
+            if (uri.scheme != "file" ||
+                !File(path).absolutePath.startsWith(avatarDirectory.absolutePath + File.separator)) {
+                return@runCatching null
             }
+            val bytes = LocalVault.readBytes(File(path)) ?: return@runCatching null
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
         }.getOrNull()
     }
 
