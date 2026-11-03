@@ -1496,7 +1496,10 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                 result.onSuccess { reference ->
                     prefs.edit().putString(key, reference).apply()
                     if (key == "wallpaper") applyWallpaper()
-                    if (::adapter.isInitialized) adapter.notifyDataSetChanged()
+                    if (::adapter.isInitialized) {
+                        adapter.clearAvatarCache()
+                        adapter.notifyDataSetChanged()
+                    }
                     status.text = "PRIVATE • image stored encrypted locally"
                 }.onFailure {
                     status.text = "IMAGE IMPORT FAILED • " + (it.message ?: "Could not import the image.")
