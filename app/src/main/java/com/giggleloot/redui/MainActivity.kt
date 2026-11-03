@@ -1377,9 +1377,15 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         val explicit = listOf(
             "search the web", "search online", "look this up", "look it up", "look online",
             "look up", "find online", "find on the web", "google this", "web search",
-            "research", "investigate", "verify", "fact check", "fact-check", "check sources"
+            "search for", "find me", "research", "investigate", "verify", "fact check",
+            "fact-check", "check sources"
         )
         if (explicit.any { q.contains(it) }) return true
+        val creative = listOf(
+            "write a poem", "write a song", "write lyrics", "make up a story",
+            "creative writing", "fictional story", "brainstorm", "imagine a scene"
+        )
+        if (creative.any { q.contains(it) }) return false
         val current = listOf(
             "latest", "today", "tonight", "current", "currently", "right now", "this week",
             "this month", "this year", "recent", "recently", "newest", "breaking", "news",
