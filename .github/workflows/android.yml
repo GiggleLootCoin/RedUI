@@ -232,7 +232,7 @@ jobs:
           rm -rf /tmp/redui-tts /tmp/kitten-mini-en-v0_8 /tmp/kitten-mini-en-v0_8.tar.bz2
 
       - name: Build release APK
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
+        run: gradle -PprivacyTestBuild=true :app:assembleRelease --no-daemon --stacktrace
 
       - name: Locate built APK
         run: |
@@ -314,6 +314,8 @@ jobs:
         run: |
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "package: name='com.giggleloot.redui.privacytest'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "application-label:'RedUI Private Test'"
           echo "APK: $APK"
           ls -lh "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
