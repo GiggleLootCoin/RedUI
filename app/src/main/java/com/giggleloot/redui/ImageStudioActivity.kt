@@ -35,7 +35,15 @@ class ImageStudioActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val result = runCatching {
                 val bytes = LocalVault.readBytes(file) ?: throw IllegalStateException("The selected image no longer exists.")
-                contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ?: throw IllegalStateException("The selected image could not be decoded.")
+                val png = ByteArrayOutputStream()
+                try {
+                    if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, png)) {
+                        throw IllegalStateException("The image could not be converted to PNG.")
+                    }
+                } finally { bitmap.recycle() }
+                contentResolver.openOutputStream(uri)?.use { it.write(png.toByteArray()) }
                     ?: throw IllegalStateException("Could not open the selected export location.")
             }
             withContext(Dispatchers.Main) {
@@ -81,7 +89,7 @@ class ImageStudioActivity : AppCompatActivity() {
             typeface = Typeface.DEFAULT_BOLD
         })
         root.addView(label(
-            "Your images stay in local app storage and are encrypted at rest. Import images, view your private gallery, or export a copy.",
+            "Your images stay in local app storage and are encrypted at rest. Import images, view your private gallery, or export a copy. For strict privacy, choose a file stored on this device; cloud storage providers may handle their own files independently of RedUI.",
             12f
         ).apply { setPadding(0, dp(5), 0, dp(9)) })
 
