@@ -953,7 +953,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
     private fun saveCurrentChat() {
         if (!::chatStore.isInitialized || msgs.isEmpty()) return
         try {
-            chatStore.save(currentChatId, msgs)
+            chatStore.save(currentChatId, msgs, CharacterProfileStore(this).activeId())
             prefs.edit().putString("current_chat_id", currentChatId).apply()
         } catch (_:Throwable) {}
     }
@@ -988,22 +988,48 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
 
     private fun showSavedChats() {
         if (!::chatStore.isInitialized) return
-        val chats=chatStore.all()
-        if(chats.isEmpty()) {
-            AlertDialog.Builder(this).setTitle("Saved chats").setMessage("Your conversations are saved automatically on this phone. Nothing is sent to the cloud by the chat-history system.").setPositiveButton("NEW CHAT"){_,_->startNewChat()}.setNegativeButton("CLOSE",null).show()
+        val profiles = CharacterProfileStore(this)
+        val activeId = profiles.activeId()
+        val activeName = profiles.activeProfile()?.name ?: "General conversations"
+        AlertDialog.Builder(this).setTitle("Saved chat histories")
+            .setItems(arrayOf("ALL characters and conversations", "ONLY this character • " + activeName)) { _, which ->
+                displaySavedChats(chatStore.all(if (which == 0) null else activeId))
+            }
+            .setNegativeButton("CLOSE", null)
+            .setPositiveButton("NEW CHAT") { _, _ -> startNewChat() }
+            .show()
+    }
+
+    private fun displaySavedChats(chats: List<SavedChat>) {
+        if (chats.isEmpty()) {
+            AlertDialog.Builder(this).setTitle("Saved chats")
+                .setMessage("No conversations are stored for this selection. Chats are saved locally on this phone.")
+                .setPositiveButton("NEW CHAT") { _, _ -> startNewChat() }
+                .setNegativeButton("CLOSE", null).show()
             return
         }
-        val labels=chats.map { "• " + it.title + "\n  " + chatStore.displayDate(it.updated) + " • " + it.messages.size + " messages" }.toTypedArray()
+        val labels = chats.map { chat ->
+            val persona = if (chat.characterId.isBlank()) "General" else
+                CharacterProfileStore(this).all().firstOrNull { it.id == chat.characterId }?.name ?: "Character"
+            "• " + chat.title + "\n  " + persona + " • " + chatStore.displayDate(chat.updated) +
+                " • " + chat.messages.size + " messages"
+        }.toTypedArray()
         AlertDialog.Builder(this).setTitle("Saved chats • " + chats.size)
-            .setItems(labels){_,which->loadSavedChat(chats[which].id)}
-            .setNeutralButton("DELETE ALL"){_,_->confirmDeleteAllChats()}
-            .setPositiveButton("NEW CHAT"){_,_->startNewChat()}
+            .setItems(labels) { _, which -> loadSavedChat(chats[which].id) }
+            .setNeutralButton("DELETE ALL") { _, _ -> confirmDeleteAllChats() }
+            .setPositiveButton("NEW CHAT") { _, _ -> startNewChat() }
             .show()
     }
 
     private fun loadSavedChat(id:String) {
         if(generating)return
         val saved=chatStore.load(id) ?: return
+        val characterStore = CharacterProfileStore(this)
+        if (saved.characterId.isNotBlank()) {
+            characterStore.all().firstOrNull { it.id == saved.characterId }?.let { characterStore.setActive(it) }
+        } else {
+            characterStore.clearActive()
+        }
         currentChatId=saved.id
         prefs.edit().putString("current_chat_id",currentChatId).apply()
         msgs.clear();msgs.addAll(saved.messages)
