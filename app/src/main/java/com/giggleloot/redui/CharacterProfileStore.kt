@@ -109,10 +109,29 @@ class CharacterProfileStore(context: Context) {
 
     fun save(profile: CharacterProfile) {
         val safe = safeId(profile.id).ifBlank { UUID.randomUUID().toString() }
+        val previousAvatar = runCatching { readStored(safe)?.avatarUri }.getOrNull()
         val canonical = profile.copy(id = safe, updatedAt = System.currentTimeMillis())
         val json = canonical.toCardJson().put("stored_id", safe).put("updated_at", canonical.updatedAt).toString()
         LocalVault.writeText(File(directory, "$safe.enc"), json)
         File(directory, "$safe.json").delete()
+        if (!previousAvatar.isNullOrBlank() && previousAvatar != canonical.avatarUri &&
+            all().none { it.avatarUri == previousAvatar }) {
+            deleteAvatarFile(previousAvatar)
+        }
+    }
+
+    private fun deleteAvatarFile(reference: String) {
+        if (reference.startsWith("vault:")) {
+            PrivateMediaStore.delete(appContext, reference)
+            return
+        }
+        runCatching {
+            val uri = Uri.parse(reference)
+            val path = uri.path ?: return@runCatching
+            val file = File(path).canonicalFile
+            val root = avatarDirectory.canonicalFile
+            if (uri.scheme == "file" && file.toPath().startsWith(root.toPath())) file.delete()
+        }
     }
 
     fun setActive(profile: CharacterProfile) {
@@ -131,11 +150,13 @@ class CharacterProfileStore(context: Context) {
     fun delete(id: String) {
         val key = safeId(id)
         if (key.isBlank()) return
+        val previousAvatar = runCatching { readStored(key)?.avatarUri }.getOrNull()
         File(directory, "$key.enc").delete()
         File(directory, "$key.json").delete()
-        File(avatarDirectory, "$key.png.enc").delete()
-        File(avatarDirectory, "$key.png").delete()
         if (activeId() == key) clearActive()
+        if (!previousAvatar.isNullOrBlank() && all().none { it.avatarUri == previousAvatar }) {
+            deleteAvatarFile(previousAvatar)
+        }
     }
 
     fun duplicate(profile: CharacterProfile): CharacterProfile {
