@@ -46,7 +46,7 @@ class AiHordeImageService(private val context: Context) {
             .put("nsfw", false)
             .put("censor_nsfw", true)
             .put("r2", true)
-            .put("shared", false)
+            .put("shared", true)
             .put("replacement_filter", true)
 
         if (sourceUri != null) {
