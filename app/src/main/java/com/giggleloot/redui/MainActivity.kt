@@ -430,9 +430,9 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
     private fun initLocalVoiceEngine() {
         cleanupLegacyVoiceData()
         var saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
-        if (saved !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male", "android") + (0..7).map { "kitten_$it" } + vctkSpeakerIds.map { "vctk_$it" })) saved = "lessac"
+        if (saved !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male") + (0..7).map { "kitten_$it" } + vctkSpeakerIds.map { "vctk_$it" })) saved = "lessac"
         localVoiceKey = saved
-        prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", saved != "android").apply()
+        prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", true).apply()
         status.text = "LOCAL • ready • RedUI voice: " + localVoiceLabel(saved)
     }
 
@@ -1429,7 +1429,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
 
     private fun playBundledVoiceTest(key: String) {
         if (key !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male") + (0..7).map { "kitten_$it" } + vctkSpeakerIds.map { "vctk_$it" })) {
-            Toast.makeText(this, "Choose a working Android live voice or a Piper sample first.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Choose a bundled local voice first.", Toast.LENGTH_LONG).show()
             return
         }
         lifecycleScope.launch(Dispatchers.IO) {
