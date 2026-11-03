@@ -1165,6 +1165,48 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             .setPositiveButton("DONE", null).show()
     }
 
+    private fun applyAutoPerformancePreset() {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val info = ActivityManager.MemoryInfo()
+        manager.getMemoryInfo(info)
+        val ramGiB = info.totalMem / (1024L * 1024L * 1024L)
+        val processors = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+        val lowMemory = info.lowMemory || ramGiB < 3L
+        val contextTokens = when {
+            lowMemory -> 768
+            ramGiB < 5L -> 1024
+            ramGiB < 7L -> 1536
+            else -> 2048
+        }
+        val replyTokens = if (ramGiB < 5L || lowMemory) 160 else 224
+        val threads = minOf(4, maxOf(2, processors / 2))
+        val batch = when {
+            lowMemory || ramGiB < 5L -> 32
+            ramGiB < 7L -> 48
+            else -> 64
+        }
+        prefs.edit()
+            .putFloat("gen_temperature", .65f)
+            .putInt("gen_max_tokens", replyTokens)
+            .putFloat("gen_top_p", .88f)
+            .putInt("gen_top_k", 32)
+            .putFloat("gen_repeat_penalty", 1.08f)
+            .putInt("gen_context", contextTokens)
+            .putInt("gen_threads", threads)
+            .putInt("gen_batch", batch)
+            .putString("gen_preset", "AUTO")
+            .putBoolean("gen_mmap", true)
+            .putBoolean("gen_flash", false)
+            .putInt("gen_gpu_layers", 0)
+            .apply()
+        Toast.makeText(
+            this,
+            "AUTO • " + ramGiB + " GB RAM • " + threads + " CPU threads • " +
+                contextTokens + " context • conservative batch " + batch,
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
     private fun applyPerformancePreset(name: String) {
         val edit = prefs.edit()
         when (name) {
@@ -1188,6 +1230,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
 
     private fun showPerformanceSettings() {
         val choices = arrayOf(
+            "AUTO • detect this phone and choose stable settings",
             "FAST • quickest replies • 1K context",
             "BALANCED • everyday quality • 1.5K context",
             "DEEP • longer answers • 2K context",
@@ -1196,9 +1239,10 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         AlertDialog.Builder(this).setTitle("Performance profile")
             .setItems(choices) { _, which ->
                 when (which) {
-                    0 -> applyPerformancePreset("FAST")
-                    1 -> applyPerformancePreset("BALANCED")
-                    2 -> applyPerformancePreset("DEEP")
+                    0 -> applyAutoPerformancePreset()
+                    1 -> applyPerformancePreset("FAST")
+                    2 -> applyPerformancePreset("BALANCED")
+                    3 -> applyPerformancePreset("DEEP")
                     else -> showManualPerformanceSettings()
                 }
             }.setNegativeButton("CLOSE", null).show()
