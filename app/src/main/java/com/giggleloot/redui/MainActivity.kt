@@ -150,6 +150,9 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        clearLegacyImageReferences()
+        cacheDir.listFiles { _, name -> name.startsWith("redui-voice-") || name.startsWith("redui-test-") }
+            ?.forEach { it.delete() }
         // Critical startup path: only construct the visual shell here.
         // Everything that can fail, allocate heavily, or touch disk/network is deferred.
         try {
@@ -228,6 +231,8 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         handsFree = false
         speech?.destroy()
         stopLocalSpeech()
+        cacheDir.listFiles { _, name -> name.startsWith("redui-voice-") || name.startsWith("redui-test-") }
+            ?.forEach { it.delete() }
         closeLocalTts()
         handler.removeCallbacksAndMessages(null)
         try { LlamaBridge.nativeCancelGenerate() } catch (_: Throwable) {}
@@ -1400,6 +1405,9 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
 
     private fun showPersonalize(){
         val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(26),dp(4),dp(26),dp(4))}
+        box.addView(tv("Images are copied into encrypted local storage. For strict privacy, choose images already saved on this device; cloud file providers may handle their own files independently of RedUI.", 10f, Color.LTGRAY).apply {
+            setPadding(0, 0, 0, dp(8))
+        })
         box.addView(button("SET MY PROFILE PICTURE"){pickUserAvatar.launch(arrayOf("image/*"))})
         box.addView(button("SET REDAI PROFILE PICTURE"){pickAiAvatar.launch(arrayOf("image/*"))})
         box.addView(button("SET CHAT WALLPAPER"){pickWallpaper.launch(arrayOf("image/*"))})
@@ -1456,6 +1464,20 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                 withContext(Dispatchers.Main) { status.text = "LOCAL • voice sample unavailable" }
             }
         }
+    }
+
+    private fun clearLegacyImageReferences() {
+        val store = getSharedPreferences("redui", MODE_PRIVATE)
+        val edit = store.edit()
+        var changed = false
+        for (key in listOf("user_avatar", "ai_avatar", "wallpaper")) {
+            val value = store.getString(key, null)
+            if (!value.isNullOrBlank() && !value.startsWith("vault:")) {
+                edit.remove(key)
+                changed = true
+            }
+        }
+        if (changed) edit.commit()
     }
 
     private fun saveImageUri(key:String,uri:Uri?){
