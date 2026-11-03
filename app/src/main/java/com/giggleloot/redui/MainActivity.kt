@@ -744,10 +744,10 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val searchRequested = shouldAutoSearch(prompt)
-                webContext = ""
-                webSourceList = ""
-                webStatusContext = ""
                 if (searchRequested) {
+                    webContext = ""
+                    webSourceList = ""
+                    webStatusContext = ""
                     if (!webSearchEnabled) {
                         webStatusContext = "LIVE SEARCH STATUS: Web search is switched off in RedUI settings. Do not claim a live lookup occurred."
                         withContext(Dispatchers.Main) { status.text = "WEB • disabled • local answer" }
@@ -769,6 +769,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                     }
                 }
                 // Preserve a manually requested web search until the next answer uses it.
+                val usedWebEvidence = webContext.isNotBlank()
                 // Galaxy A12 performance profile: keep the prompt window tight and
                 // generation bounded so the model spends less time processing old
                 // conversation while retaining enough room for useful answers.
@@ -800,7 +801,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                         msgs[ai]=msgs[ai].copy(text=completeReply)
                         saveCurrentChat()
                         webContext="";webSourceList="";webStatusContext=""
-                        status.text=if (searchRequested) "WEB • answer grounded • "+f.name else "LOCAL • ready • "+f.name
+                        status.text=if (usedWebEvidence || searchRequested) "WEB • answer grounded • "+f.name else "LOCAL • ready • "+f.name
                         if(handsFree)voiceState.text="SPEAKING • you can interrupt"
                         val reply=cleanForSpeech(cleanReply)
                         if(speakReplies)speak(reply) else if(handsFree)startListening()
