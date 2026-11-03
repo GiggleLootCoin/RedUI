@@ -349,8 +349,8 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
         with:
-          name: RedUI-release
-          path: app/build/outputs/**/*.apk
+          name: RedUI-64-bit-test
+          path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
           if-no-files-found: error
           retention-days: 90
 
