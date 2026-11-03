@@ -206,17 +206,10 @@ class CharacterProfileStore(context: Context) {
         if (encoded.isNotBlank() && encoded.length <= 700_000) {
             runCatching {
                 val bytes = Base64.decode(encoded, Base64.DEFAULT)
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    ?: throw IllegalArgumentException("Embedded portrait is not a readable image.")
-                val output = ByteArrayOutputStream()
-                try {
-                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
-                        throw IllegalStateException("Could not encode the portrait.")
-                    }
-                } finally { bitmap.recycle() }
-                val target = File(avatarDirectory, profile.id + ".png.enc")
-                LocalVault.writeBytes(target, output.toByteArray())
-                profile = profile.copy(avatarUri = Uri.fromFile(target).toString())
+                val reference = PrivateMediaStore.importBytes(
+                    appContext, bytes, "character-" + profile.id, 640
+                )
+                profile = profile.copy(avatarUri = reference)
             }
         }
         save(profile)
