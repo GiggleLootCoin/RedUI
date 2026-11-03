@@ -3,11 +3,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val privacyTestBuild = providers.gradleProperty("privacyTestBuild").orNull == "true"
+
 android {
     namespace = "com.giggleloot.redui"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.giggleloot.redui"
+        applicationId = if (privacyTestBuild) "com.giggleloot.redui.privacytest" else "com.giggleloot.redui"
+        manifestPlaceholders["appLabel"] = if (privacyTestBuild) "RedUI Private Test" else "RedUI"
         minSdk = 29
         targetSdk = 35
         versionCode = 163
