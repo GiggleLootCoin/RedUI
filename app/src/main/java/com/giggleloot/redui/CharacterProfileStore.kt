@@ -137,9 +137,10 @@ class CharacterProfileStore(context: Context) {
     fun setActive(profile: CharacterProfile) {
         save(profile)
         profilePrefs.edit().putString("active_id", profile.id).apply()
+        val voiceKey = profile.voiceKey.takeIf { it.isNotBlank() && it != "android" } ?: "lessac"
         appContext.getSharedPreferences("redui", Context.MODE_PRIVATE).edit()
-            .putString("local_voice_key", profile.voiceKey.ifBlank { "lessac" })
-            .putBoolean("local_voice", profile.voiceKey != "android").apply()
+            .putString("local_voice_key", voiceKey)
+            .putBoolean("local_voice", true).apply()
     }
 
     fun clearActive() { profilePrefs.edit().remove("active_id").apply() }
