@@ -37,7 +37,7 @@ class ImageStudioActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val result = runCatching {
                 val bytes = LocalVault.readBytes(file) ?: throw IllegalStateException("The selected image no longer exists.")
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                val bitmap = decodeSampledBitmap(bytes, 4096)
                     ?: throw IllegalStateException("The selected image could not be decoded.")
                 val png = ByteArrayOutputStream()
                 try {
@@ -135,7 +135,12 @@ class ImageStudioActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val result = runCatching {
                 val bytes = readBounded(contentResolver, uri, 20_000_000)
-                val check = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                    throw IllegalArgumentException("The selected file is not a readable image.")
+                }
+                val check = decodeSampledBitmap(bytes, 256)
                     ?: throw IllegalArgumentException("The selected file is not a readable image.")
                 check.recycle()
                 val folder = File(filesDir, "generated_images").apply { mkdirs() }
@@ -172,11 +177,24 @@ class ImageStudioActivity : AppCompatActivity() {
         }
     }
 
+    private fun decodeSampledBitmap(bytes: ByteArray, maxSide: Int): android.graphics.Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (bounds.outWidth / sample > maxSide * 2 || bounds.outHeight / sample > maxSide * 2) {
+            sample *= 2
+        }
+        return BitmapFactory.decodeByteArray(
+            bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }
+        )
+    }
+
     private fun loadPreview(file: File) {
         lifecycleScope.launch(Dispatchers.IO) {
             val bitmap = runCatching {
                 val bytes = LocalVault.readBytes(file) ?: return@runCatching null
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                decodeSampledBitmap(bytes, 2048)
             }.getOrNull()
             withContext(Dispatchers.Main) {
                 if (bitmap == null) {
