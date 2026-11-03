@@ -73,11 +73,30 @@ data class CharacterProfile(
 class CharacterProfileStore(context: Context) {
     private val appContext = context.applicationContext
     private val directory = File(appContext.filesDir, "character_profiles").apply { mkdirs() }
+    private val avatarDirectory = File(directory, "avatars").apply { mkdirs() }
     private val profilePrefs = appContext.getSharedPreferences("redui_character_store", Context.MODE_PRIVATE)
 
+    private fun safeId(value: String): String =
+        value.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(80)
+
+    private fun readStored(id: String): CharacterProfile? {
+        val key = safeId(id)
+        if (key.isBlank()) return null
+        val encrypted = File(directory, "$key.enc")
+        val legacy = File(directory, "$key.json")
+        val source = when { encrypted.isFile -> encrypted; legacy.isFile -> legacy; else -> return null }
+        val raw = LocalVault.readText(source) ?: return null
+        if (source == legacy) {
+            LocalVault.writeText(encrypted, raw)
+            legacy.delete()
+        }
+        return decodeStored(raw, key)
+    }
+
     fun all(): List<CharacterProfile> =
-        directory.listFiles { file -> file.isFile && file.extension.equals("json", true) }
-            ?.mapNotNull { file -> runCatching { decodeStored(file.readText(), file.nameWithoutExtension) }.getOrNull() }
+        directory.listFiles { file -> file.isFile && (file.extension.equals("enc", true) || file.extension.equals("json", true)) }
+            ?.map { it.nameWithoutExtension }?.distinct()
+            ?.mapNotNull { id -> runCatching { readStored(id) }.getOrNull() }
             ?.sortedByDescending { it.updatedAt } ?: emptyList()
 
     fun activeId(): String = profilePrefs.getString("active_id", "").orEmpty()
@@ -85,23 +104,15 @@ class CharacterProfileStore(context: Context) {
     fun activeProfile(): CharacterProfile? {
         val id = activeId()
         if (id.isBlank()) return null
-        return runCatching {
-            val file = File(directory, "$id.json")
-            if (!file.isFile) null else decodeStored(file.readText(), id)
-        }.getOrNull()
+        return runCatching { readStored(id) }.getOrNull()
     }
 
     fun save(profile: CharacterProfile) {
-        val safeId = profile.id.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.ifBlank { UUID.randomUUID().toString() }
-        val canonical = profile.copy(id = safeId, updatedAt = System.currentTimeMillis())
-        val json = canonical.toCardJson().put("stored_id", safeId).put("updated_at", canonical.updatedAt).toString()
-        val target = File(directory, "$safeId.json")
-        val temporary = File(directory, "$safeId.json.tmp")
-        temporary.writeText(json)
-        if (!temporary.renameTo(target)) {
-            target.writeText(json)
-            temporary.delete()
-        }
+        val safe = safeId(profile.id).ifBlank { UUID.randomUUID().toString() }
+        val canonical = profile.copy(id = safe, updatedAt = System.currentTimeMillis())
+        val json = canonical.toCardJson().put("stored_id", safe).put("updated_at", canonical.updatedAt).toString()
+        LocalVault.writeText(File(directory, "$safe.enc"), json)
+        File(directory, "$safe.json").delete()
     }
 
     fun setActive(profile: CharacterProfile) {
@@ -115,14 +126,34 @@ class CharacterProfileStore(context: Context) {
     fun clearActive() { profilePrefs.edit().remove("active_id").apply() }
 
     fun delete(id: String) {
-        File(directory, "$id.json").delete()
-        if (activeId() == id) clearActive()
+        val key = safeId(id)
+        if (key.isBlank()) return
+        File(directory, "$key.enc").delete()
+        File(directory, "$key.json").delete()
+        File(avatarDirectory, "$key.png.enc").delete()
+        File(avatarDirectory, "$key.png").delete()
+        if (activeId() == key) clearActive()
     }
 
     fun duplicate(profile: CharacterProfile): CharacterProfile {
         val copy = profile.copy(id = UUID.randomUUID().toString(), name = profile.name + " Copy", updatedAt = System.currentTimeMillis())
         save(copy)
         return copy
+    }
+
+    fun loadAvatar(profile: CharacterProfile): Bitmap? {
+        if (profile.avatarUri.isBlank()) return null
+        return runCatching {
+            val uri = Uri.parse(profile.avatarUri)
+            val path = uri.path
+            if (uri.scheme == "file" && !path.isNullOrBlank() &&
+                File(path).absolutePath.startsWith(avatarDirectory.absolutePath + File.separator)) {
+                val bytes = LocalVault.readBytes(File(path)) ?: return@runCatching null
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            } else {
+                appContext.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+            }
+        }.getOrNull()
     }
 
     fun export(profile: CharacterProfile): String {
@@ -132,23 +163,24 @@ class CharacterProfileStore(context: Context) {
         extensions.remove("redui_avatar_uri")
         if (profile.avatarUri.isNotBlank()) {
             runCatching {
-                val uri = Uri.parse(profile.avatarUri)
-                val source = appContext.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-                    ?: throw IllegalStateException("Portrait unavailable")
+                val source = loadAvatar(profile) ?: throw IllegalStateException("Portrait unavailable")
                 val scaled = if (source.width > 512 || source.height > 512) {
                     val scale = minOf(512f / source.width, 512f / source.height)
                     Bitmap.createScaledBitmap(source, (source.width * scale).toInt().coerceAtLeast(1),
                         (source.height * scale).toInt().coerceAtLeast(1), true)
                 } else source
                 val output = ByteArrayOutputStream()
-                var quality = 82
-                do {
-                    output.reset()
-                    scaled.compress(Bitmap.CompressFormat.JPEG, quality, output)
-                    quality -= 8
-                } while (output.size() > 450_000 && quality >= 42)
-                if (scaled !== source) scaled.recycle()
-                source.recycle()
+                try {
+                    var quality = 82
+                    do {
+                        output.reset()
+                        scaled.compress(Bitmap.CompressFormat.JPEG, quality, output)
+                        quality -= 8
+                    } while (output.size() > 450_000 && quality >= 42)
+                } finally {
+                    if (scaled !== source) scaled.recycle()
+                    source.recycle()
+                }
                 if (output.size() <= 500_000) {
                     extensions.put("redui_avatar_base64", Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP))
                     extensions.put("redui_avatar_mime", "image/jpeg")
@@ -169,15 +201,14 @@ class CharacterProfileStore(context: Context) {
                 val bytes = Base64.decode(encoded, Base64.DEFAULT)
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     ?: throw IllegalArgumentException("Embedded portrait is not a readable image.")
-                val avatarDir = File(directory, "avatars").apply { mkdirs() }
-                val target = File(avatarDir, profile.id + ".png")
+                val output = ByteArrayOutputStream()
                 try {
-                    target.outputStream().use { stream ->
-                        if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
-                            throw IllegalStateException("Could not save embedded portrait.")
-                        }
+                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                        throw IllegalStateException("Could not encode the portrait.")
                     }
                 } finally { bitmap.recycle() }
+                val target = File(avatarDirectory, profile.id + ".png.enc")
+                LocalVault.writeBytes(target, output.toByteArray())
                 profile = profile.copy(avatarUri = Uri.fromFile(target).toString())
             }
         }
