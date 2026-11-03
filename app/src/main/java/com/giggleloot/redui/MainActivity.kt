@@ -851,6 +851,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         val messages = mutableListOf<Pair<String,String>>()
         messages.add("system" to redAiSystemPrompt)
         CharacterProfileStore(this).activeProfile()?.toPromptContext()?.takeIf { it.isNotBlank() }?.let { messages.add("system" to it) }
+        UserPersonaStore(this).promptContext().takeIf { it.isNotBlank() }?.let { messages.add("system" to it) }
         val waysContext = relevantWaysOfThinking(userPrompt)
         if (waysContext.isNotBlank()) messages.add("system" to waysContext)
         if (attachmentContext.isNotBlank()) messages.add("system" to "User attachments available for this conversation:\n" + attachmentContext.toString().takeLast(18000))
