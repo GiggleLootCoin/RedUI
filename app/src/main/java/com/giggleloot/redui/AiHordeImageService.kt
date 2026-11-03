@@ -107,10 +107,15 @@ class AiHordeImageService(private val context: Context) {
         if (bytes.size < 1000) throw IllegalStateException("The downloaded image was unexpectedly small.")
         val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             ?: throw IllegalStateException("The result was not a readable image.")
-        decoded.recycle()
+        val png = ByteArrayOutputStream()
+        try {
+            if (!decoded.compress(Bitmap.CompressFormat.PNG, 100, png)) {
+                throw IllegalStateException("The generated image could not be saved as PNG.")
+            }
+        } finally { decoded.recycle() }
         val folder = File(context.filesDir, "generated_images").apply { mkdirs() }
         val output = File(folder, "RedUI_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().take(8) + ".png")
-        output.writeBytes(bytes)
+        output.writeBytes(png.toByteArray())
         onStatus("Saved privately in your RedUI image gallery.")
         return HordeImageResult(output, queue, wait)
     }
@@ -149,7 +154,7 @@ class AiHordeImageService(private val context: Context) {
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("apikey", anonymousKey)
-            setRequestProperty("Client-Agent", "RedUI:162:mobile-client")
+            setRequestProperty("Client-Agent", "RedUI:162:https://github.com/GiggleLootCoin/RedUI")
         }
         try {
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
@@ -168,7 +173,7 @@ class AiHordeImageService(private val context: Context) {
             readTimeout = 25000
             setRequestProperty("Accept", "application/json")
             setRequestProperty("apikey", anonymousKey)
-            setRequestProperty("Client-Agent", "RedUI:162:mobile-client")
+            setRequestProperty("Client-Agent", "RedUI:162:https://github.com/GiggleLootCoin/RedUI")
         }
         try {
             val code = connection.responseCode
@@ -186,7 +191,7 @@ class AiHordeImageService(private val context: Context) {
             connectTimeout = 15000
             readTimeout = 30000
             instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "RedUI/162")
+            setRequestProperty("User-Agent", "RedUI/162 (+https://github.com/GiggleLootCoin/RedUI)")
         }
         try {
             val code = connection.responseCode
