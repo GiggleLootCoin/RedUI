@@ -852,6 +852,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         messages.add("system" to redAiSystemPrompt)
         CharacterProfileStore(this).activeProfile()?.toPromptContext()?.takeIf { it.isNotBlank() }?.let { messages.add("system" to it) }
         UserPersonaStore(this).promptContext().takeIf { it.isNotBlank() }?.let { messages.add("system" to it) }
+        MemoryStore(this).relevantContext(userPrompt).takeIf { it.isNotBlank() }?.let { messages.add("system" to it) }
         val waysContext = relevantWaysOfThinking(userPrompt)
         if (waysContext.isNotBlank()) messages.add("system" to waysContext)
         if (attachmentContext.isNotBlank()) messages.add("system" to "User attachments available for this conversation:\n" + attachmentContext.toString().takeLast(18000))
@@ -1111,6 +1112,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             setPadding(0, 0, 0, dp(8))
         })
         box.addView(button("PERSONALISE PROFILE") { showPersonalize() })
+        box.addView(button("MEMORY & KNOWLEDGE LIBRARY") { startActivity(Intent(this, MemoryStudioActivity::class.java)) })
         box.addView(button("CHAT & INTERFACE COLOUR") { showThemeColors() })
         box.addView(button("VOICE LIBRARY") { showVoiceChoices() })
         box.addView(button("PERFORMANCE & MODEL CONTROLS") { showPerformanceSettings() })
