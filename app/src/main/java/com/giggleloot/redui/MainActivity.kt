@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var store: ModelStore
     private lateinit var chatStore: ChatSessionStore
     private var currentChatId: String = ""
+    private var currentChatProfileId: String = ""
     private lateinit var spinner: Spinner
     private lateinit var status: TextView
     private lateinit var voiceState: TextView
@@ -165,6 +166,15 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             store = ModelStore(this)
             chatStore = ChatSessionStore(this)
             currentChatId = prefs.getString("current_chat_id", "") ?: ""
+            val characterStore = CharacterProfileStore(this)
+            val restoredChat = if (currentChatId.isBlank()) null else chatStore.load(currentChatId)
+            if (restoredChat != null) {
+                if (restoredChat.characterId.isBlank()) characterStore.clearActive()
+                else characterStore.all().firstOrNull { it.id == restoredChat.characterId }?.let { characterStore.setActive(it) }
+                currentChatProfileId = restoredChat.characterId
+            } else {
+                currentChatProfileId = characterStore.activeId()
+            }
             webSearchEnabled = prefs.getBoolean("web_search_enabled", true)
             webProvider = prefs.getString("web_provider", "purili") ?: "purili"
             if (currentChatId.isBlank() || chatStore.load(currentChatId) == null) currentChatId = UUID.randomUUID().toString()
@@ -201,6 +211,31 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         view.addView(tv(message, 12f, Color.rgb(235, 80, 88)).apply { setPadding(0, 0, 0, dp(18)) })
         view.addView(button("RESTART REDUI", true) { recreate() })
         setContentView(view)
+    }
+
+    override fun onPause() {
+        if (::chatStore.isInitialized && !generating) saveCurrentChat()
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!::chatStore.isInitialized) return
+        val selectedProfileId = CharacterProfileStore(this).activeId()
+        if (selectedProfileId != currentChatProfileId && !generating) {
+            // The old chat was saved under its original persona in onPause.
+            // A persona change starts a clean conversation instead of mixing roles.
+            currentChatProfileId = selectedProfileId
+            currentChatId = UUID.randomUUID().toString()
+            prefs.edit().putString("current_chat_id", currentChatId).apply()
+            msgs.clear()
+            attachmentContext.setLength(0)
+            attachmentCount = 0
+            if (::attachmentState.isInitialized) attachmentState.text = "NO ATTACHMENTS"
+            if (::adapter.isInitialized) adapter.notifyDataSetChanged()
+            if (::status.isInitialized) status.text =
+                if (selectedProfileId.isBlank()) "LOCAL • new general conversation" else "LOCAL • new character conversation"
+        }
     }
 
     override fun onDestroy() {
@@ -955,7 +990,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
     private fun saveCurrentChat() {
         if (!::chatStore.isInitialized || msgs.isEmpty()) return
         try {
-            chatStore.save(currentChatId, msgs, CharacterProfileStore(this).activeId())
+            chatStore.save(currentChatId, msgs, currentChatProfileId)
             prefs.edit().putString("current_chat_id", currentChatId).apply()
         } catch (_:Throwable) {}
     }
@@ -977,6 +1012,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             return
         }
         saveCurrentChat()
+        currentChatProfileId = CharacterProfileStore(this).activeId()
         currentChatId = UUID.randomUUID().toString()
         prefs.edit().putString("current_chat_id",currentChatId).apply()
         msgs.clear()
@@ -1033,6 +1069,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             characterStore.clearActive()
         }
         currentChatId=saved.id
+        currentChatProfileId=saved.characterId
         prefs.edit().putString("current_chat_id",currentChatId).apply()
         msgs.clear();msgs.addAll(saved.messages)
         adapter.notifyDataSetChanged()
