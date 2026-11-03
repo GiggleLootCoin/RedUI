@@ -251,6 +251,8 @@ jobs:
           grep -q 'class CharacterProfileStore' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
           grep -q 'chara_card_v2' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
           grep -q 'class CharacterStudioActivity' app/src/main/java/com/giggleloot/redui/CharacterStudioActivity.kt
+          grep -q 'class UserPersonaStore' app/src/main/java/com/giggleloot/redui/UserPersonaStore.kt
+          grep -q 'UserPersonaStore(this).promptContext()' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'class ImageStudioActivity' app/src/main/java/com/giggleloot/redui/ImageStudioActivity.kt
           grep -q 'class AiHordeImageService' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
           grep -q 'source_processing' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
