@@ -2,11 +2,13 @@ name: Build RedUI APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: ["main"]
   push:
     branches: ["main"]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: redui-android-${{ github.ref }}
@@ -230,7 +232,7 @@ jobs:
           rm -rf /tmp/redui-tts /tmp/kitten-mini-en-v0_8 /tmp/kitten-mini-en-v0_8.tar.bz2
 
       - name: Build release APK
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
+        run: gradle -PprivacyTestBuild=true :app:assembleRelease --no-daemon --stacktrace
 
       - name: Locate built APK
         run: |
@@ -240,14 +242,23 @@ jobs:
           find app/build/outputs -maxdepth 5 -type f -print
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
-          grep -q 'class WebSearchService' app/src/main/java/com/giggleloot/redui/WebSearchService.kt
-          grep -q 'AES/GCM/NoPadding' app/src/main/java/com/giggleloot/redui/WebSearchService.kt
-          grep -q 'webSearch.search(prompt, webProvider)' app/src/main/java/com/giggleloot/redui/MainActivity.kt
-          grep -q 'Sources (live search)' app/src/main/java/com/giggleloot/redui/MainActivity.kt
-          grep -q 'CharacterStudioActivity' app/src/main/java/com/giggleloot/redui/MainActivity.kt
-          grep -q 'ImageStudioActivity' app/src/main/java/com/giggleloot/redui/MainActivity.kt
-          grep -q 'activeProfile()?.toPromptContext()' app/src/main/java/com/giggleloot/redui/MainActivity.kt
-          grep -q 'character_id' app/src/main/java/com/giggleloot/redui/ChatSessionStore.kt
+          test -f app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          test -f app/src/main/java/com/giggleloot/redui/PrivateMediaStore.kt
+          grep -q 'PrivateMediaStore.write' app/src/main/java/com/giggleloot/redui/PrivateMediaStore.kt || grep -q 'LocalVault.writeBytes' app/src/main/java/com/giggleloot/redui/PrivateMediaStore.kt
+          grep -q 'PrivateMediaStore.importUri' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'PrivateMediaStore.loadBitmap' app/src/main/java/com/giggleloot/redui/ChatAdapter.kt
+          grep -q 'AndroidKeyStore' app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          grep -q 'AES/GCM/NoPadding' app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          grep -q '.setKeySize(256)' app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          grep -q '.setUnlockedDeviceRequired(true)' app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          grep -q 'Existing private data has been left untouched' app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/ChatSessionStore.kt
+          grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/MemoryStore.kt
+          grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/UserPersonaStore.kt
+          grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
+          grep -q 'PrivateMediaStore.importBytes' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
+          grep -q 'LocalVault.writeBytes' app/src/main/java/com/giggleloot/redui/ImageStudioActivity.kt
+          grep -q 'createOnDeviceSpeechRecognizer' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'class CharacterProfileStore' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
           grep -q 'chara_card_v2' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
           grep -q 'class CharacterStudioActivity' app/src/main/java/com/giggleloot/redui/CharacterStudioActivity.kt
@@ -259,14 +270,20 @@ jobs:
           grep -q 'versionCode = 163' app/build.gradle.kts
           grep -q 'UserPersonaStore(this).promptContext()' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'class ImageStudioActivity' app/src/main/java/com/giggleloot/redui/ImageStudioActivity.kt
-          grep -q 'class AiHordeImageService' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
-          grep -q 'source_processing' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
           grep -q 'class AttachmentReader' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
           grep -q 'readPdf' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
-          grep -q 'versionCode = 163' app/build.gradle.kts
           grep -q 'com.google.mlkit:image-labeling:17.0.9' app/build.gradle.kts
           grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml
+          grep -q 'tools:node="remove"' app/src/main/AndroidManifest.xml
+          if grep -R -E 'HttpURLConnection|HttpsURLConnection|OkHttpClient|Retrofit|WebView|TextToSpeech|aihorde.net|Galaxy|Samsung|SM-A125|Exynos|Android 12|Android system voice|Android live voice' app/src/main/java; then
+            echo "Unexpected network/remote voice path or device-specific label found in app sources."
+            exit 1
+          fi
+          if grep -R -E 'setImageURI|openInputStream\(Uri\.parse|Intent\.ACTION_VIEW' app/src/main/java; then
+            echo "Unexpected automatic external file or browser hand-off found in app sources."
+            exit 1
+          fi
           echo "Checking APK contains every real bundled TTS model, tokens, espeak data, test WAV, and core assets:"
           unzip -l "$APK" | grep -q "assets/espeak-ng-data/en_dict"
           unzip -l "$APK" | grep -q "assets/kitten-mini/model.onnx"
@@ -298,9 +315,15 @@ jobs:
         run: |
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "package: name='com.giggleloot.redui.privacytest'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "application-label:'RedUI Private Test'"
           echo "APK: $APK"
           ls -lh "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          if "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$APK" | grep -Eq 'android.permission.(INTERNET|ACCESS_NETWORK_STATE|CHANGE_NETWORK_STATE|ACCESS_WIFI_STATE|CHANGE_WIFI_STATE)'; then
+            echo "Release APK unexpectedly contains a network permission."
+            exit 1
+          fi
           unzip -l "$APK" | grep -q "assets/espeak-ng-data/en_dict"
           unzip -l "$APK" | grep -q "assets/kitten-mini/model.onnx"
           unzip -l "$APK" | grep -q "assets/kitten-mini/voices.bin"
@@ -329,16 +352,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
         with:
-          name: RedUI-release
-          path: app/build/outputs/**/*.apk
+          name: RedUI-64-bit-test
+          path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
           if-no-files-found: error
           retention-days: 90
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ github.run_number }}
-          name: RedUI v${{ github.run_number }}
-          files: |
-            app/build/outputs/**/*.apk
-          generate_release_notes: true

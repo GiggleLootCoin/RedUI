@@ -17,12 +17,23 @@ data class LocalMemory(
 )
 
 class MemoryStore(context: Context) {
-    private val file = File(context.applicationContext.filesDir, "redai_memory.json")
+    private val directory = context.applicationContext.filesDir
+    private val file = File(directory, "redai_memory.enc")
+    private val legacyFile = File(directory, "redai_memory.json")
+
+    @Synchronized
+    private fun migrateLegacyIfNeeded() {
+        if (file.isFile || !legacyFile.isFile) return
+        val raw = LocalVault.readText(legacyFile) ?: "[]"
+        LocalVault.writeText(file, raw)
+        legacyFile.delete()
+    }
 
     @Synchronized
     fun all(): List<LocalMemory> = runCatching {
+        migrateLegacyIfNeeded()
         if (!file.isFile) return emptyList()
-        val array = JSONArray(file.readText())
+        val array = JSONArray(LocalVault.readText(file) ?: "[]")
         (0 until array.length()).mapNotNull { i ->
             val obj = array.optJSONObject(i) ?: return@mapNotNull null
             val id = obj.optString("id")
@@ -144,12 +155,7 @@ class MemoryStore(context: Context) {
                 .put("category", memory.category).put("tags", memory.tags)
                 .put("created_at", memory.createdAt).put("updated_at", memory.updatedAt))
         }
-        file.parentFile?.mkdirs()
-        val temp = File(file.parentFile, file.name + ".tmp")
-        temp.writeText(arr.toString())
-        if (!temp.renameTo(file)) {
-            file.writeText(arr.toString())
-            temp.delete()
-        }
+        LocalVault.writeText(file, arr.toString())
+        legacyFile.delete()
     }
 }
