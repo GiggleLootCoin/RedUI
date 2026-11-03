@@ -83,23 +83,41 @@ class WebSearchService(context: Context) {
             when (provider) {
                 "tavily" -> {
                     val key = readTavilyKey()
-                        ?: return WebSearchResult(emptyList(), "", "Tavily is selected but no API key is saved. Choose DuckDuckGo or Wikipedia, or add your own free Tavily key in RedAI settings.")
+                        ?: return WebSearchResult(emptyList(), "", "Tavily is selected but no API key is saved. Choose the free no-key Purili search instead.")
                     searchTavily(query, key)
                 }
                 "wikipedia" -> searchWikipedia(query)
-                else -> {
+                "duckduckgo" -> {
                     val web = searchDuckDuckGo(query)
                     if (web.succeeded) web else {
-                        val wiki = searchWikipedia(query)
-                        if (wiki.succeeded) wiki else WebSearchResult(emptyList(), "", web.error ?: wiki.error)
+                        val purili = searchPurili(query)
+                        if (purili.succeeded) purili else {
+                            val wiki = searchWikipedia(query)
+                            WebSearchResult(emptyList(), "", web.error ?: purili.error ?: wiki.error)
+                        }
+                    }
+                }
+                else -> {
+                    val primary = searchPurili(query)
+                    if (primary.succeeded) primary else {
+                        val fallback = searchDuckDuckGo(query)
+                        if (fallback.succeeded) fallback else {
+                            val wiki = searchWikipedia(query)
+                            if (wiki.succeeded) wiki else WebSearchResult(
+                                emptyList(), "",
+                                "Free web search services did not return usable results. " +
+                                    (primary.error ?: fallback.error ?: wiki.error.orEmpty())
+                            )
+                        }
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.w("RedAIWebSearch", "Search failed: ${e.javaClass.simpleName}")
-            WebSearchResult(emptyList(), "", "Live search failed (${e.javaClass.simpleName}). RedAI did not receive search results.")
+            Log.w("RedUIWebSearch", "Search failed: " + e.javaClass.simpleName)
+            WebSearchResult(emptyList(), "", "Live search failed (" + e.javaClass.simpleName + "). RedUI did not receive search results.")
         }
     }
+
 
     private fun searchWikipedia(query: String): WebSearchResult {
         val encoded = URLEncoder.encode(query.take(400), "UTF-8")
@@ -169,6 +187,72 @@ class WebSearchService(context: Context) {
             }
             val enriched = enrichSources(sources)
             return WebSearchResult(enriched, formatContext(enriched))
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun searchPurili(query: String): WebSearchResult {
+        val encoded = URLEncoder.encode(query.take(500), "UTF-8")
+        val connection = (URL("https://puri.li/api/search?q=$encoded&page=1").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 7000
+            readTimeout = 10000
+            setRequestProperty("User-Agent", "RedUI/2026 (mobile web search)")
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val code = connection.responseCode
+            if (code !in 200..299) return WebSearchResult(emptyList(), "", "Purili search returned HTTP $code.")
+            val body = connection.inputStream.bufferedReader().use { it.readText().take(500_000) }
+            val array = JSONObject(body).optJSONArray("results")
+                ?: return WebSearchResult(emptyList(), "", "Purili returned an unreadable search response.")
+            val sources = (0 until minOf(array.length(), 5)).mapNotNull { i ->
+                val item = array.optJSONObject(i) ?: return@mapNotNull null
+                val link = item.optString("url")
+                if (!isSafePublicUrl(link)) return@mapNotNull null
+                WebSource(
+                    clean(item.optString("title").ifBlank { link }),
+                    link,
+                    clean(item.optString("description")).take(1600)
+                )
+            }.distinctBy { it.url }
+            if (sources.isEmpty()) return WebSearchResult(emptyList(), "", "Purili found no usable indexed pages for this query.")
+            // Context is crawler-stored text, not a claim of live fetching the target page.
+            val first = sources.first()
+            val storedText = fetchPuriliContext(first.url)
+            val enriched = if (storedText.isNotBlank()) {
+                sources.mapIndexed { index, source ->
+                    if (index == 0) source.copy(excerpt = storedText.take(1800)) else source
+                }
+            } else sources
+            return WebSearchResult(enriched, formatContext(enriched))
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun fetchPuriliContext(link: String): String {
+        if (!isSafePublicUrl(link)) return ""
+        val encoded = URLEncoder.encode(link, "UTF-8")
+        val connection = (URL("https://puri.li/api/context?url=$encoded").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 4500
+            readTimeout = 6500
+            setRequestProperty("User-Agent", "RedUI/2026 (mobile web research)")
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val code = connection.responseCode
+            if (code !in 200..299) return ""
+            val body = connection.inputStream.bufferedReader().use { it.readText().take(500_000) }
+            val json = JSONObject(body)
+            val content = clean(json.optString("content"))
+            val summary = clean(json.optString("summary"))
+            val coverage = clean(json.optString("coverage"))
+            val text = content.ifBlank { summary }
+            if (text.isBlank()) return ""
+            return text + if (coverage.isNotBlank()) " [Index coverage: $coverage]" else ""
         } finally {
             connection.disconnect()
         }
