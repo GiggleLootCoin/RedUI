@@ -5,6 +5,8 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.text.util.Linkify
+import android.text.method.LinkMovementMethod
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -108,6 +110,9 @@ class ChatAdapter(
         holder.label.text = if (user) "YOU" else "RED AI"
         holder.label.setTextColor(if (user) mix(accent, Color.WHITE, .55f) else accent)
         holder.text.text = item.text
+        holder.text.autoLinkMask = Linkify.WEB_URLS
+        holder.text.movementMethod = LinkMovementMethod.getInstance()
+        holder.text.setLinkTextColor(accent)
         val avatarKey = if (user) "user_avatar" else "ai_avatar"
         val uri = prefs.getString(avatarKey, null)
         if (uri != null) {
