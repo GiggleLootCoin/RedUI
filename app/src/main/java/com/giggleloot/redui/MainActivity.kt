@@ -1419,13 +1419,14 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             isChecked = webSearchEnabled
         }
         var chosenProvider = webProvider
-        val providerButton = button("PROVIDER: " + chosenProvider.uppercase(Locale.ROOT)) {
+        lateinit var providerButton: Button
+        providerButton = button("PROVIDER: " + chosenProvider.uppercase(Locale.ROOT)) {
             chosenProvider = when (chosenProvider) {
                 "duckduckgo" -> "wikipedia"
                 "wikipedia" -> "tavily"
                 else -> "duckduckgo"
             }
-            providerButtonLabel(chosenProvider)
+            providerButton.text = "PROVIDER: " + chosenProvider.uppercase(Locale.ROOT)
         }
         val providerInfo = tv("DuckDuckGo and Wikipedia need no API key. Tavily offers 1,000 free monthly credits without a card.", 12f, Color.LTGRAY)
         val keyInput = EditText(this).apply {
@@ -1461,10 +1462,6 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
                 status.text = if (webSearchEnabled) "WEB • enabled • " + webProvider else "WEB • disabled • local chat only"
             }
             .setNegativeButton("CANCEL", null).show()
-    }
-
-    private fun providerButtonLabel(provider: String) {
-        // Provider selection is persisted only when the settings dialog is saved.
     }
 
     private fun runWebSearch(query: String) {
