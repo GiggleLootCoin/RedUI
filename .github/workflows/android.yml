@@ -252,13 +252,18 @@ jobs:
           grep -q 'chara_card_v2' app/src/main/java/com/giggleloot/redui/CharacterProfileStore.kt
           grep -q 'class CharacterStudioActivity' app/src/main/java/com/giggleloot/redui/CharacterStudioActivity.kt
           grep -q 'class UserPersonaStore' app/src/main/java/com/giggleloot/redui/UserPersonaStore.kt
+          grep -q 'class MemoryStore' app/src/main/java/com/giggleloot/redui/MemoryStore.kt
+          grep -q 'class MemoryStudioActivity' app/src/main/java/com/giggleloot/redui/MemoryStudioActivity.kt
+          grep -q 'MemoryStore(this).relevantContext(userPrompt)' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'MemoryStudioActivity' app/src/main/AndroidManifest.xml
+          grep -q 'versionCode = 163' app/build.gradle.kts
           grep -q 'UserPersonaStore(this).promptContext()' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'class ImageStudioActivity' app/src/main/java/com/giggleloot/redui/ImageStudioActivity.kt
           grep -q 'class AiHordeImageService' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
           grep -q 'source_processing' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
           grep -q 'class AttachmentReader' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
           grep -q 'readPdf' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
-          grep -q 'versionCode = 162' app/build.gradle.kts
+          grep -q 'versionCode = 163' app/build.gradle.kts
           grep -q 'com.google.mlkit:image-labeling:17.0.9' app/build.gradle.kts
           grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml
