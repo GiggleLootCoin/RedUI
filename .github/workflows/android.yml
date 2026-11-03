@@ -243,6 +243,10 @@ jobs:
           APK=$(find app/build/outputs/apk/release -type f -name "app-arm64-v8a-release.apk" -print -quit)
           test -n "$APK"
           test -f app/src/main/java/com/giggleloot/redui/LocalVault.kt
+          test -f app/src/main/java/com/giggleloot/redui/PrivateMediaStore.kt
+          grep -q 'PrivateMediaStore.write' app/src/main/java/com/giggleloot/redui/PrivateMediaStore.kt || grep -q 'LocalVault.writeBytes' app/src/main/java/com/giggleloot/redui/PrivateMediaStore.kt
+          grep -q 'PrivateMediaStore.importUri' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'PrivateMediaStore.loadBitmap' app/src/main/java/com/giggleloot/redui/ChatAdapter.kt
           grep -q 'AndroidKeyStore' app/src/main/java/com/giggleloot/redui/LocalVault.kt
           grep -q 'AES/GCM/NoPadding' app/src/main/java/com/giggleloot/redui/LocalVault.kt
           grep -q 'LocalVault.writeText' app/src/main/java/com/giggleloot/redui/ChatSessionStore.kt
@@ -269,8 +273,12 @@ jobs:
           grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'tools:node="remove"' app/src/main/AndroidManifest.xml
-          if grep -R -E 'HttpURLConnection|HttpsURLConnection|OkHttpClient|Retrofit|WebView|TextToSpeech|aihorde.net' app/src/main/java; then
-            echo "Unexpected cloud/network or system TTS path found in app sources."
+          if grep -R -E 'HttpURLConnection|HttpsURLConnection|OkHttpClient|Retrofit|WebView|TextToSpeech|aihorde.net|Galaxy|Samsung|SM-A125|Exynos' app/src/main/java; then
+            echo "Unexpected network/remote voice path or device-specific label found in app sources."
+            exit 1
+          fi
+          if grep -R -E 'setImageURI|openInputStream\(Uri\.parse|Intent\.ACTION_VIEW' app/src/main/java; then
+            echo "Unexpected automatic external file or browser hand-off found in app sources."
             exit 1
           fi
           echo "Checking APK contains every real bundled TTS model, tokens, espeak data, test WAV, and core assets:"
@@ -307,7 +315,7 @@ jobs:
           echo "APK: $APK"
           ls -lh "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-          if "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$APK" | grep -Eq 'android.permission.(INTERNET|ACCESS_NETWORK_STATE|CHANGE_NETWORK_STATE)'; then
+          if "$ANDROID_HOME/build-tools/36.0.0/aapt" dump permissions "$APK" | grep -Eq 'android.permission.(INTERNET|ACCESS_NETWORK_STATE|CHANGE_NETWORK_STATE|ACCESS_WIFI_STATE|CHANGE_WIFI_STATE)'; then
             echo "Release APK unexpectedly contains a network permission."
             exit 1
           fi
