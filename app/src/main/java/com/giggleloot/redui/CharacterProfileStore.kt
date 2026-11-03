@@ -1,6 +1,11 @@
 package com.giggleloot.redui
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -120,9 +125,65 @@ class CharacterProfileStore(context: Context) {
         return copy
     }
 
-    fun export(profile: CharacterProfile): String = profile.toCardJson().toString(2)
+    fun export(profile: CharacterProfile): String {
+        val card = profile.toCardJson()
+        val data = card.optJSONObject("data") ?: return card.toString(2)
+        val extensions = data.optJSONObject("extensions") ?: JSONObject().also { data.put("extensions", it) }
+        extensions.remove("redui_avatar_uri")
+        if (profile.avatarUri.isNotBlank()) {
+            runCatching {
+                val uri = Uri.parse(profile.avatarUri)
+                val source = appContext.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+                    ?: throw IllegalStateException("Portrait unavailable")
+                val scaled = if (source.width > 512 || source.height > 512) {
+                    val scale = minOf(512f / source.width, 512f / source.height)
+                    Bitmap.createScaledBitmap(source, (source.width * scale).toInt().coerceAtLeast(1),
+                        (source.height * scale).toInt().coerceAtLeast(1), true)
+                } else source
+                val output = ByteArrayOutputStream()
+                var quality = 82
+                do {
+                    output.reset()
+                    scaled.compress(Bitmap.CompressFormat.JPEG, quality, output)
+                    quality -= 8
+                } while (output.size() > 450_000 && quality >= 42)
+                if (scaled !== source) scaled.recycle()
+                source.recycle()
+                if (output.size() <= 500_000) {
+                    extensions.put("redui_avatar_base64", Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP))
+                    extensions.put("redui_avatar_mime", "image/jpeg")
+                }
+            }
+        }
+        return card.toString(2)
+    }
 
-    fun import(raw: String): CharacterProfile = CharacterProfile.fromCardJson(raw).also { save(it) }
+    fun import(raw: String): CharacterProfile {
+        val root = JSONObject(raw)
+        val data = root.optJSONObject("data") ?: root
+        val extensions = data.optJSONObject("extensions") ?: root.optJSONObject("extensions") ?: JSONObject()
+        var profile = CharacterProfile.fromCardJson(raw)
+        val encoded = extensions.optString("redui_avatar_base64")
+        if (encoded.isNotBlank() && encoded.length <= 700_000) {
+            runCatching {
+                val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ?: throw IllegalArgumentException("Embedded portrait is not a readable image.")
+                val avatarDir = File(directory, "avatars").apply { mkdirs() }
+                val target = File(avatarDir, profile.id + ".png")
+                try {
+                    target.outputStream().use { stream ->
+                        if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
+                            throw IllegalStateException("Could not save embedded portrait.")
+                        }
+                    }
+                } finally { bitmap.recycle() }
+                profile = profile.copy(avatarUri = Uri.fromFile(target).toString())
+            }
+        }
+        save(profile)
+        return profile
+    }
 
     private fun decodeStored(raw: String, id: String): CharacterProfile {
         val root = JSONObject(raw)
