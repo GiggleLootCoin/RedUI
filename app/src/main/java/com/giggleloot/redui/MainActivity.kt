@@ -119,7 +119,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var webSourceList = ""
     private var webStatusContext = ""
     private var webSearchEnabled = true
-    private var webProvider = "duckduckgo"
+    private var webProvider = "purili"
     private val webSearch by lazy { WebSearchService(this) }
     private lateinit var attachmentState: TextView
 
@@ -165,7 +165,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             chatStore = ChatSessionStore(this)
             currentChatId = prefs.getString("current_chat_id", "") ?: ""
             webSearchEnabled = prefs.getBoolean("web_search_enabled", true)
-            webProvider = prefs.getString("web_provider", "duckduckgo") ?: "duckduckgo"
+            webProvider = prefs.getString("web_provider", "purili") ?: "purili"
             if (currentChatId.isBlank() || chatStore.load(currentChatId) == null) currentChatId = UUID.randomUUID().toString()
             buildUi()
         } catch (e: Throwable) {
@@ -1429,13 +1429,14 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         lateinit var providerButton: Button
         providerButton = button("PROVIDER: " + chosenProvider.uppercase(Locale.ROOT)) {
             chosenProvider = when (chosenProvider) {
+                "purili" -> "duckduckgo"
                 "duckduckgo" -> "wikipedia"
                 "wikipedia" -> "tavily"
-                else -> "duckduckgo"
+                else -> "purili"
             }
             providerButton.text = "PROVIDER: " + chosenProvider.uppercase(Locale.ROOT)
         }
-        val providerInfo = tv("DuckDuckGo and Wikipedia need no API key. Tavily offers 1,000 free monthly credits without a card.", 12f, Color.LTGRAY)
+        val providerInfo = tv("Purili is the default: indexed web search and stored page context, no account, key or setup. DuckDuckGo is a no-key fallback; Wikipedia is encyclopedia-only. Tavily is optional.", 12f, Color.LTGRAY)
         val keyInput = EditText(this).apply {
             hint = if (webSearch.hasTavilyKey()) "Tavily key saved securely on this phone" else "Optional Tavily API key"
             setTextColor(Color.WHITE)
