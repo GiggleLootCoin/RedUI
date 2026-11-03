@@ -142,7 +142,7 @@ class ImageStudioActivity : AppCompatActivity() {
         actions.addView(button("EXPORT IMAGE") { exportLatest() }, LinearLayout.LayoutParams(0, dp(45), 1f))
         actions.addView(button("GALLERY") { showGallery() }, LinearLayout.LayoutParams(0, dp(45), 1f).apply { leftMargin = dp(7) })
         content.addView(actions, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(8) })
-        content.addView(label("Privacy: prompts and any source image are sent to the external AI Horde volunteer network for processing. Anonymous requests need no account or API key, but have the lowest queue priority. Do not send private, sensitive or identifying images. Results may take time or fail when no suitable worker is available.", 10f).apply {
+        content.addView(label("Privacy: prompts and any source image are sent to the external AI Horde volunteer network for processing. Anonymous requests need no account or API key, but have the lowest queue priority. Requests and images are processed by external volunteer workers; anonymous generations may be shared under AI Horde community rules. Do not send private, sensitive or identifying images. Results may take time or fail when no suitable worker is available.", 10f).apply {
             setPadding(0, dp(12), 0, dp(8))
         })
         scroll.addView(content)
@@ -159,9 +159,9 @@ class ImageStudioActivity : AppCompatActivity() {
             return
         }
         val disclosure = if (sourceUri == null) {
-            "Your image prompt and negative prompt will be sent over HTTPS to AI Horde and processed by independent volunteer workers. Anonymous use is free and needs no account, but queue priority is lowest. Continue?"
+            "Your image prompt and negative prompt will be sent over HTTPS to AI Horde and processed by independent volunteer workers. Anonymous use is free and needs no account, but queue priority is lowest and anonymous generations may be shared under AI Horde's community rules. Do not send private or identifying material. Continue?"
         } else {
-            "Your prompt and selected source image will be sent over HTTPS to AI Horde and processed by independent volunteer workers. Do not send private or identifying images. Anonymous use is free, with the lowest queue priority. Continue?"
+            "Your prompt and selected source image will be sent over HTTPS to AI Horde and processed by independent volunteer workers. Do not send private or identifying images. Anonymous use is free, with the lowest queue priority. Requests and source images go to volunteer workers, and anonymous generations may be shared under AI Horde's community rules. Do not send private or identifying material. Continue?"
         }
         AlertDialog.Builder(this).setTitle("External image generation")
             .setMessage(disclosure)
