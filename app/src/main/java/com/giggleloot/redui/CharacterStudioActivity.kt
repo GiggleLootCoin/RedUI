@@ -2,8 +2,6 @@ package com.giggleloot.redui
 
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.BitmapFactory
-import android.net.Uri
 import android.graphics.Typeface
 import android.os.Bundle
 import android.view.Gravity
@@ -126,10 +124,7 @@ class CharacterStudioActivity : AppCompatActivity() {
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setBackgroundColor(Color.rgb(42, 39, 45))
             }
-            val avatarBitmap = runCatching {
-                val uri = Uri.parse(profile.avatarUri)
-                contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-            }.getOrNull()
+            val avatarBitmap = store.loadAvatar(profile)
             if (avatarBitmap != null) avatar.setImageBitmap(avatarBitmap)
             else avatar.setImageResource(android.R.drawable.ic_menu_myplaces)
             hero.addView(avatar, LinearLayout.LayoutParams(dp(66), dp(66)))
