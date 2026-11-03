@@ -1436,7 +1436,7 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
             setHintTextColor(Color.GRAY)
             textSize = 14f
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-            singleLine = true
+            isSingleLine = true
         }
         box.addView(enabled)
         box.addView(providerButton)
