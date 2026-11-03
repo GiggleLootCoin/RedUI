@@ -10,8 +10,8 @@ android {
         applicationId = "com.giggleloot.redui"
         minSdk = 29
         targetSdk = 35
-        versionCode = 160
-        versionName = "160"
+        versionCode = 161
+        versionName = "161"
     }
     splits {
         abi {
@@ -45,4 +45,5 @@ dependencies {
     implementation("com.llamatik:library:1.10.1")
     implementation(files("libs/sherpa-onnx-1.13.8.aar"))
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("org.jsoup:jsoup:1.18.3")
 }
