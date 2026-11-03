@@ -8,20 +8,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class SavedChat(val id:String,val title:String,val updated:Long,val messages:List<ChatMessage>)
+data class SavedChat(val id:String,val title:String,val updated:Long,val messages:List<ChatMessage>,val characterId:String = "")
 
 class ChatSessionStore(private val context: Context) {
     private val dir = File(context.filesDir, "saved_chats").apply { mkdirs() }
     private val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
 
-    fun save(id:String, messages:List<ChatMessage>) {
+    fun save(id:String, messages:List<ChatMessage>, characterId:String = "") {
         if (messages.isEmpty()) return
         val title = messages.firstOrNull { it.role == "user" }?.text?.trim()?.replace("\\s+".toRegex()," ")?.take(72)
             ?.ifBlank { "New conversation" } ?: "New conversation"
         val root = JSONObject().put("id",id).put("title",title).put("updated",System.currentTimeMillis())
         val arr = JSONArray()
         messages.forEach { m -> arr.put(JSONObject().put("role",m.role).put("text",m.text)) }
-        root.put("messages",arr)
+        root.put("messages",arr).put("character_id", characterId)
         File(dir,"$id.json").writeText(root.toString())
     }
 
@@ -34,11 +34,11 @@ class ChatSessionStore(private val context: Context) {
                 add(ChatMessage(m.optString("role"),m.optString("text")))
             }
         }
-        SavedChat(root.optString("id",id),root.optString("title","Conversation"),root.optLong("updated",0),list)
+        SavedChat(root.optString("id",id),root.optString("title","Conversation"),root.optLong("updated",0),list,root.optString("character_id",""))
     } catch (_:Throwable) { null }
 
-    fun all():List<SavedChat> = dir.listFiles { f -> f.extension=="json" }?.mapNotNull { load(it.nameWithoutExtension) }
-        ?.sortedByDescending { it.updated } ?: emptyList()
+    fun all(characterId:String? = null):List<SavedChat> = dir.listFiles { f -> f.extension=="json" }?.mapNotNull { load(it.nameWithoutExtension) }
+        ?.filter { characterId == null || it.characterId == characterId }?.sortedByDescending { it.updated } ?: emptyList()
 
     fun delete(id:String) { try { File(dir,"$id.json").delete() } catch (_:Throwable) {} }
     fun deleteAll() { dir.listFiles()?.forEach { if(it.extension=="json") it.delete() } }
