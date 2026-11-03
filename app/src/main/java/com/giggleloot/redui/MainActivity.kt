@@ -658,24 +658,20 @@ Use natural, clear language. Be warm without being sycophantic, intellectually c
         try { speech?.destroy() } catch (_: Throwable) {}
         speech = null
         speechUsesOnDevice = false
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) return
+
+        // Privacy-first build: never fall back to a third-party or cloud speech service.
+        // If Android does not expose an on-device recognizer, microphone transcription
+        // stays unavailable rather than sending audio to a remote recognition provider.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) return
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
-                speech = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-                speechUsesOnDevice = true
-            } else {
-                speech = SpeechRecognizer.createSpeechRecognizer(this)
-            }
+            speech = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            speechUsesOnDevice = true
             speech?.setRecognitionListener(recognitionListener)
         } catch (_: Throwable) {
             speechUsesOnDevice = false
-            try {
-                speech = SpeechRecognizer.createSpeechRecognizer(this)
-                speech?.setRecognitionListener(recognitionListener)
-            } catch (_: Throwable) {
-                speech = null
-            }
+            try { speech?.destroy() } catch (_: Throwable) {}
+            speech = null
         }
     }
 
