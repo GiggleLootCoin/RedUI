@@ -2,6 +2,8 @@ package com.giggleloot.redui
 
 import android.content.SharedPreferences
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.util.LruCache
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.text.util.Linkify
@@ -25,6 +27,12 @@ class ChatAdapter(
         val label: TextView,
         val text: TextView
     ) : RecyclerView.ViewHolder(row)
+
+    private val avatarCache = object : LruCache<String, Bitmap>(4 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = (value.byteCount / 1024).coerceAtLeast(1)
+    }
+
+    fun clearAvatarCache() = avatarCache.evictAll()
 
     private fun Int.dp(view: android.view.View): Int =
         (this * view.resources.displayMetrics.density).toInt()
@@ -116,7 +124,11 @@ class ChatAdapter(
         val avatarKey = if (user) "user_avatar" else "ai_avatar"
         val reference = prefs.getString(avatarKey, null)
         val avatarBitmap = if (reference?.startsWith("vault:") == true) {
-            runCatching { PrivateMediaStore.loadBitmap(holder.itemView.context, reference) }.getOrNull()
+            avatarCache.get(reference) ?: runCatching {
+                PrivateMediaStore.loadBitmap(holder.itemView.context, reference)?.also {
+                    avatarCache.put(reference, it)
+                }
+            }.getOrNull()
         } else null
         if (avatarBitmap != null) holder.avatar.setImageBitmap(avatarBitmap)
         else holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f)))
