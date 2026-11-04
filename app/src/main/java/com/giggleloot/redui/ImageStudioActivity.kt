@@ -195,7 +195,7 @@ class ImageStudioActivity : AppCompatActivity() {
                     status.text = "COMPLETE • saved to RedUI gallery • queue position " +
                         (if (result.queuePosition >= 0) result.queuePosition else "not reported") +
                         (if (result.waitSeconds >= 0) " • estimated wait " + result.waitSeconds + "s" else "")
-                    Toast.makeText(this@ImageStudioActivity, "Image generated and saved privately.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@ImageStudioActivity, "Image generated and saved on this phone.", Toast.LENGTH_LONG).show()
                 }
             } catch (error: Throwable) {
                 withContext(Dispatchers.Main) {
