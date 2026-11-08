@@ -10,12 +10,12 @@ permissions:
 
 concurrency:
   group: redui-android-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
@@ -97,39 +97,51 @@ jobs:
           python3 -m pip install "sherpa-onnx==1.13.8"
           mkdir -p /tmp/redui-tts app/src/main/assets/testvoices
           python3 - <<'PY'
+          import os
           import struct
           import wave
-          import urllib.request
-          import tarfile
-          import os
           import sherpa_onnx
 
+          assets = "app/src/main/assets"
           voices = [
-              ("lessac", "vits-piper-en_US-lessac-medium", "en_US-lessac-medium.onnx"),
-              ("amy", "vits-piper-en_US-amy-medium", "en_US-amy-medium.onnx"),
-              ("cori", "vits-piper-en_GB-cori-high", "en_GB-cori-high.onnx"),
-              ("alan", "vits-piper-en_GB-alan-medium", "en_GB-alan-medium.onnx"),
-              ("alba", "vits-piper-en_GB-alba-medium", "en_GB-alba-medium.onnx"),
-              ("jenny_dioco", "vits-piper-en_GB-jenny_dioco-medium", "en_GB-jenny_dioco-medium.onnx"),
-              ("northern_english_male", "vits-piper-en_GB-northern_english_male-medium", "en_GB-northern_english_male-medium.onnx"),
-              ("vctk", "vits-piper-en_GB-vctk-medium", "en_GB-vctk-medium.onnx"),
+              ("lessac", "en_US-lessac-medium.onnx"),
+              ("amy", "en_US-amy-medium.onnx"),
+              ("cori", "en_GB-cori-high.onnx"),
+              ("alan", "en_GB-alan-medium.onnx"),
+              ("alba", "en_GB-alba-medium.onnx"),
+              ("jenny_dioco", "en_GB-jenny_dioco-medium.onnx"),
+              ("northern_english_male", "en_GB-northern_english_male-medium.onnx"),
+              ("vctk", "en_GB-vctk-medium.onnx"),
           ]
 
-          root = "/tmp/redui-tts"
-          for key, dirname, model_file in voices:
-              archive = f"/tmp/{dirname}.tar.bz2"
-              url = f"https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/{dirname}.tar.bz2"
-              urllib.request.urlretrieve(url, archive)
-              with tarfile.open(archive, "r:bz2") as tf:
-                  tf.extractall(root, filter="data")
-              os.remove(archive)
-              base = os.path.join(root, dirname)
+          def write_wav(path, audio):
+              if not audio.samples:
+                  raise RuntimeError("TTS returned empty audio: " + path)
+              with wave.open(path, "wb") as out:
+                  out.setnchannels(1)
+                  out.setsampwidth(2)
+                  out.setframerate(audio.sample_rate)
+                  frames = bytearray()
+                  for sample in audio.samples:
+                      sample = max(-1.0, min(1.0, float(sample)))
+                      frames.extend(struct.pack("<h", int(sample * 32767.0)))
+                  out.writeframes(frames)
+
+          os.makedirs("app/src/main/assets/testvoices", exist_ok=True)
+          for key, model_file in voices:
+              base = os.path.join(assets, "voices", key)
+              model_path = os.path.join(base, model_file)
+              tokens_path = os.path.join(base, "tokens.txt")
+              required = [model_path, tokens_path, os.path.join(assets, "espeak-ng-data", "en_dict")]
+              for path in required:
+                  if not os.path.isfile(path) or os.path.getsize(path) == 0:
+                      raise RuntimeError("Missing bundled voice input: " + path)
               cfg = sherpa_onnx.OfflineTtsConfig(
                   model=sherpa_onnx.OfflineTtsModelConfig(
                       vits=sherpa_onnx.OfflineTtsVitsModelConfig(
-                          model=os.path.join(base, model_file),
-                          tokens=os.path.join(base, "tokens.txt"),
-                          data_dir=os.path.join(base, "espeak-ng-data"),
+                          model=model_path,
+                          tokens=tokens_path,
+                          data_dir=os.path.join(assets, "espeak-ng-data"),
                       ),
                       num_threads=2,
                       debug=False,
@@ -138,29 +150,37 @@ jobs:
                   max_num_sentences=1,
               )
               if not cfg.validate():
-                  raise RuntimeError("Invalid TTS config for " + key)
+                  raise RuntimeError("Invalid bundled Piper TTS config for " + key)
               tts = sherpa_onnx.OfflineTts(cfg)
               speaker_ids = [95, 82, 60, 102, 98, 81, 97, 93, 5, 92, 79, 76, 84, 104, 57, 107, 90, 74, 94, 1, 17, 0, 48, 87] if key == "vctk" else [0]
               for sid in speaker_ids:
-                  audio = tts.generate(
-                      "Hello. This is voice sample " + str(sid) + " in Red U I.",
-                      sid=sid,
-                      speed=1.0,
-                  )
-                  if not audio.samples:
-                      raise RuntimeError("No audio generated for " + key + " speaker " + str(sid))
-                  out_name = f"vctk-{sid}.wav" if key == "vctk" else f"{key}.wav"
-                  out = f"app/src/main/assets/testvoices/{out_name}"
-                  with wave.open(out, "wb") as wf:
-                      wf.setnchannels(1)
-                      wf.setsampwidth(2)
-                      wf.setframerate(audio.sample_rate)
-                      frames = bytearray()
-                      for sample in audio.samples:
-                          sample = max(-1.0, min(1.0, float(sample)))
-                          frames.extend(struct.pack("<h", int(sample * 32767.0)))
-                      wf.writeframes(frames)
-                  print("generated", out)
+                  audio = tts.generate("Hello. This is voice sample " + str(sid) + " in Red U I.", sid=sid, speed=1.0)
+                  name = "vctk-" + str(sid) + ".wav" if key == "vctk" else key + ".wav"
+                  write_wav("app/src/main/assets/testvoices/" + name, audio)
+                  print("generated", name)
+
+          kitten = os.path.join(assets, "kitten-mini")
+          kitten_cfg = sherpa_onnx.OfflineTtsConfig(
+              model=sherpa_onnx.OfflineTtsModelConfig(
+                  kitten=sherpa_onnx.OfflineTtsKittenModelConfig(
+                      model=os.path.join(kitten, "model.onnx"),
+                      voices=os.path.join(kitten, "voices.bin"),
+                      tokens=os.path.join(kitten, "tokens.txt"),
+                      data_dir=os.path.join(assets, "espeak-ng-data"),
+                  ),
+                  num_threads=1,
+                  debug=False,
+                  provider="cpu",
+              ),
+              max_num_sentences=1,
+          )
+          if not kitten_cfg.validate():
+              raise RuntimeError("Bundled Kitten Mini config failed validation")
+          kitten_tts = sherpa_onnx.OfflineTts(kitten_cfg)
+          for sid, voice_name in enumerate(["Jasper", "Bella", "Bruno", "Luna", "Hugo", "Rosie", "Leo", "Kiki"]):
+              audio = kitten_tts.generate("Hello. This is " + voice_name + ", one of the Kitten Mini voices in Red U I.", sid=sid, speed=1.0)
+              write_wav("app/src/main/assets/testvoices/kitten-" + str(sid) + ".wav", audio)
+              print("generated kitten-" + str(sid) + ".wav")
           PY
           for voice in lessac amy cori alan alba jenny_dioco northern_english_male; do
             test -s "app/src/main/assets/testvoices/$voice.wav"
@@ -261,14 +281,19 @@ jobs:
           grep -q 'class MemoryStudioActivity' app/src/main/java/com/giggleloot/redui/MemoryStudioActivity.kt
           grep -q 'MemoryStore(this).relevantContext(userPrompt)' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'MemoryStudioActivity' app/src/main/AndroidManifest.xml
-          grep -q 'versionCode = 163' app/build.gradle.kts
+          grep -q 'versionCode = 165' app/build.gradle.kts
           grep -q 'UserPersonaStore(this).promptContext()' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'PERFORMANCE CENTER' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'FASTEST POSSIBLE' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'currentThermalStatus' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'loadedModelConfig != modelConfig' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'android:allowBackup="false"' app/src/main/AndroidManifest.xml
           grep -q 'class ImageStudioActivity' app/src/main/java/com/giggleloot/redui/ImageStudioActivity.kt
           grep -q 'class AiHordeImageService' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
           grep -q 'source_processing' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
           grep -q 'class AttachmentReader' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
           grep -q 'readPdf' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
-          grep -q 'versionCode = 163' app/build.gradle.kts
+          grep -q 'versionCode = 165' app/build.gradle.kts
           grep -q 'com.google.mlkit:image-labeling:17.0.9' app/build.gradle.kts
           grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml

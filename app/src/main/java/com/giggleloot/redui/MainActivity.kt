@@ -107,6 +107,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var localTts: OfflineTts? = null
     private var localTtsLoadedKey = ""
         private var loadedModelPath = ""
+    private var loadedModelConfig = ""
     private val prefs by lazy { getSharedPreferences("redui", MODE_PRIVATE) }
     private val accentColor: Int get() = prefs.getInt("accent_color", Color.rgb(227, 27, 35))
     private fun accentShade(factor: Float): Int = Color.rgb(
@@ -814,24 +815,45 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                 }
                 // Preserve a manually requested web search until the next answer uses it.
                 val usedWebEvidence = webContext.isNotBlank()
-                // Galaxy A12 performance profile: keep the prompt window tight and
-                // generation bounded so the model spends less time processing old
-                // conversation while retaining enough room for useful answers.
-                val temperature = prefs.getFloat("gen_temperature", .62f)
-                val maxTokens = prefs.getInt("gen_max_tokens", 160)
-                val topP = prefs.getFloat("gen_top_p", .86f)
-                val topK = prefs.getInt("gen_top_k", 28)
-                val repeatPenalty = prefs.getFloat("gen_repeat_penalty", 1.08f)
-                val contextLength = prefs.getInt("gen_context", 1024)
-                val threads = prefs.getInt("gen_threads", 4)
-                val batchSize = prefs.getInt("gen_batch", 64)
+                // Best-performance profile with live memory and thermal guardrails.
+                val temperature = prefs.getFloat("gen_temperature", .70f)
+                val maxTokens = prefs.getInt("gen_max_tokens", 256)
+                val topP = prefs.getFloat("gen_top_p", .90f)
+                val topK = prefs.getInt("gen_top_k", 40)
+                val repeatPenalty = prefs.getFloat("gen_repeat_penalty", 1.10f)
+                val requestedContext = prefs.getInt("gen_context", 2048)
+                val requestedThreads = prefs.getInt("gen_threads", 4)
+                val requestedBatch = prefs.getInt("gen_batch", 128)
+                val memory = ActivityManager.MemoryInfo()
+                (getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
+                val thermal = if (Build.VERSION.SDK_INT >= 29) {
+                    (getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).currentThermalStatus
+                } else 0
+                val lowMemory = memory.lowMemory || memory.availMem < 480L * 1024L * 1024L
+                val contextLength = if (lowMemory) minOf(requestedContext, 1024) else requestedContext
+                val threads = if (thermal >= android.os.PowerManager.THERMAL_STATUS_SEVERE) minOf(requestedThreads, 2) else requestedThreads
+                val batchSize = when {
+                    lowMemory -> minOf(requestedBatch, 32)
+                    thermal >= android.os.PowerManager.THERMAL_STATUS_MODERATE -> minOf(requestedBatch, 64)
+                    else -> requestedBatch
+                }
+                val useMmap = prefs.getBoolean("gen_mmap", true)
+                val flashAttention = prefs.getBoolean("gen_flash", false)
+                val gpuLayers = prefs.getInt("gen_gpu_layers", 0)
+                val modelConfig = "$contextLength|$threads|$useMmap|$flashAttention|$batchSize|$gpuLayers"
+                val reloadModel = loadedModelPath != f.absolutePath || loadedModelConfig != modelConfig
+                if (reloadModel && loadedModelPath.isNotBlank()) {
+                    try { LlamaBridge.shutdown() } catch (_: Throwable) {}
+                    loadedModelPath = ""
+                    loadedModelConfig = ""
+                }
                 LlamaBridge.updateGenerateParams(temperature, maxTokens, topP, topK, repeatPenalty,
-                    contextLength, threads, prefs.getBoolean("gen_mmap", true),
-                    prefs.getBoolean("gen_flash", false), batchSize, prefs.getInt("gen_gpu_layers", 0))
-                if (loadedModelPath != f.absolutePath) {
+                    contextLength, threads, useMmap, flashAttention, batchSize, gpuLayers)
+                if (reloadModel) {
                     withContext(Dispatchers.Main){status.text="LOCAL • loading • "+f.name}
                     if(!LlamaBridge.initGenerateModel(f.absolutePath))throw Exception("Could not load GGUF")
                     loadedModelPath = f.absolutePath
+                    loadedModelConfig = modelConfig
                     try { LlamaBridge.initMtp(f.absolutePath, 3) } catch (_: Throwable) {}
                 }
                 withContext(Dispatchers.Main){status.text="LOCAL • generating • "+f.name}
@@ -1177,77 +1199,80 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         manager.getMemoryInfo(info)
         val ramGiB = info.totalMem / (1024L * 1024L * 1024L)
         val processors = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
-        val lowMemory = info.lowMemory || ramGiB < 3L
-        val contextTokens = when {
-            lowMemory -> 768
-            ramGiB < 5L -> 1024
-            ramGiB < 7L -> 1536
-            else -> 2048
-        }
-        val replyTokens = if (ramGiB < 5L || lowMemory) 160 else 224
         val threads = minOf(4, maxOf(2, processors / 2))
-        val batch = when {
-            lowMemory || ramGiB < 5L -> 32
-            ramGiB < 7L -> 48
-            else -> 64
-        }
         prefs.edit()
-            .putFloat("gen_temperature", .65f)
-            .putInt("gen_max_tokens", replyTokens)
-            .putFloat("gen_top_p", .88f)
-            .putInt("gen_top_k", 32)
-            .putFloat("gen_repeat_penalty", 1.08f)
-            .putInt("gen_context", contextTokens)
+            .putFloat("gen_temperature", .70f)
+            .putInt("gen_max_tokens", 256)
+            .putFloat("gen_top_p", .90f)
+            .putInt("gen_top_k", 40)
+            .putFloat("gen_repeat_penalty", 1.10f)
+            .putInt("gen_context", 2048)
             .putInt("gen_threads", threads)
-            .putInt("gen_batch", batch)
+            .putInt("gen_batch", 128)
             .putString("gen_preset", "AUTO")
             .putBoolean("gen_mmap", true)
             .putBoolean("gen_flash", false)
             .putInt("gen_gpu_layers", 0)
             .apply()
-        Toast.makeText(
-            this,
-            "AUTO • " + ramGiB + " GB RAM • " + threads + " CPU threads • " +
-                contextTokens + " context • conservative batch " + batch,
-            Toast.LENGTH_LONG
-        ).show()
+        Toast.makeText(this,
+            "AUTO • " + ramGiB + " GB RAM • " + threads + " CPU threads • 2048 context • live memory and thermal protection enabled",
+            Toast.LENGTH_LONG).show()
     }
 
     private fun applyPerformancePreset(name: String) {
         val edit = prefs.edit()
         when (name) {
-            "FAST" -> edit.putFloat("gen_temperature", .62f).putInt("gen_max_tokens", 160)
-                .putFloat("gen_top_p", .86f).putInt("gen_top_k", 28)
-                .putFloat("gen_repeat_penalty", 1.08f).putInt("gen_context", 1024)
-                .putInt("gen_threads", 4).putInt("gen_batch", 64)
-            "DEEP" -> edit.putFloat("gen_temperature", .68f).putInt("gen_max_tokens", 320)
+            "FASTEST" -> edit.putFloat("gen_temperature", .70f).putInt("gen_max_tokens", 160)
                 .putFloat("gen_top_p", .90f).putInt("gen_top_k", 40)
-                .putFloat("gen_repeat_penalty", 1.08f).putInt("gen_context", 2048)
-                .putInt("gen_threads", 4).putInt("gen_batch", 96)
-            else -> edit.putFloat("gen_temperature", .65f).putInt("gen_max_tokens", 224)
-                .putFloat("gen_top_p", .88f).putInt("gen_top_k", 32)
-                .putFloat("gen_repeat_penalty", 1.08f).putInt("gen_context", 1536)
-                .putInt("gen_threads", 4).putInt("gen_batch", 64)
+                .putFloat("gen_repeat_penalty", 1.10f).putInt("gen_context", 1024)
+                .putInt("gen_threads", 4).putInt("gen_batch", 128)
+            "DEEP" -> edit.putFloat("gen_temperature", .70f).putInt("gen_max_tokens", 384)
+                .putFloat("gen_top_p", .90f).putInt("gen_top_k", 40)
+                .putFloat("gen_repeat_penalty", 1.10f).putInt("gen_context", 2048)
+                .putInt("gen_threads", 4).putInt("gen_batch", 128)
+            else -> edit.putFloat("gen_temperature", .70f).putInt("gen_max_tokens", 256)
+                .putFloat("gen_top_p", .90f).putInt("gen_top_k", 40)
+                .putFloat("gen_repeat_penalty", 1.10f).putInt("gen_context", 2048)
+                .putInt("gen_threads", 4).putInt("gen_batch", 128)
         }
         edit.putString("gen_preset", name).putBoolean("gen_mmap", true)
             .putBoolean("gen_flash", false).putInt("gen_gpu_layers", 0).apply()
-        Toast.makeText(this, "$name profile saved for local inference.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "$name profile saved. Live safety controls remain active.", Toast.LENGTH_SHORT).show()
     }
 
     private fun showPerformanceSettings() {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val memory = ActivityManager.MemoryInfo()
+        manager.getMemoryInfo(memory)
+        val ramGiB = memory.totalMem / (1024L * 1024L * 1024L)
+        val freeMiB = memory.availMem / (1024L * 1024L)
+        val thermal = if (Build.VERSION.SDK_INT >= 29) {
+            (getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).currentThermalStatus
+        } else 0
+        val thermalLabel = when (thermal) {
+            android.os.PowerManager.THERMAL_STATUS_NONE -> "Normal"
+            android.os.PowerManager.THERMAL_STATUS_LIGHT -> "Light"
+            android.os.PowerManager.THERMAL_STATUS_MODERATE -> "Moderate"
+            android.os.PowerManager.THERMAL_STATUS_SEVERE -> "Severe"
+            android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
+            android.os.PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+            android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown risk"
+            else -> "Unknown"
+        }
+        val summary = "DEVICE • $ramGiB GB RAM • $freeMiB MB available\nTHERMAL • $thermalLabel\nPROFILE • ${prefs.getString("gen_preset", "BEST PERFORMANCE")}\nDEFAULT TARGET • 2048 context • 4 threads • batch 128\nSAMPLING • temperature 0.70 • top-p 0.90 • top-k 40 • repeat 1.10\nMODEL • memory-mapped • CPU mode\nSAFETY • reduces context, batch and threads when memory or temperature requires it"
         val choices = arrayOf(
-            "AUTO • detect this phone and choose stable settings",
-            "FAST • quickest replies • 1K context",
-            "BALANCED • everyday quality • 1.5K context",
-            "DEEP • longer answers • 2K context",
+            "AUTO • best settings with live safety protection",
+            "FASTEST POSSIBLE • 1K context, 128 batch",
+            "BEST PERFORMANCE • 2K context, 128 batch",
+            "DEEP REASONING • longer replies, 2K context",
             "MANUAL • tune each setting"
         )
-        AlertDialog.Builder(this).setTitle("Performance profile")
+        AlertDialog.Builder(this).setTitle("PERFORMANCE CENTER").setMessage(summary)
             .setItems(choices) { _, which ->
                 when (which) {
                     0 -> applyAutoPerformancePreset()
-                    1 -> applyPerformancePreset("FAST")
-                    2 -> applyPerformancePreset("BALANCED")
+                    1 -> applyPerformancePreset("FASTEST")
+                    2 -> applyPerformancePreset("BEST PERFORMANCE")
                     3 -> applyPerformancePreset("DEEP")
                     else -> showManualPerformanceSettings()
                 }
@@ -1259,14 +1284,14 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), dp(8))
         }
-        var context = prefs.getInt("gen_context", 1024).coerceIn(512, 4096)
-        var tokens = prefs.getInt("gen_max_tokens", 160).coerceIn(64, 512)
+        var context = prefs.getInt("gen_context", 2048).coerceIn(512, 4096)
+        var tokens = prefs.getInt("gen_max_tokens", 256).coerceIn(64, 512)
         var threads = prefs.getInt("gen_threads", 4).coerceIn(1, 8)
-        var temperature = prefs.getFloat("gen_temperature", .62f)
-        var topP = prefs.getFloat("gen_top_p", .86f)
-        var topK = prefs.getInt("gen_top_k", 28).coerceIn(10, 80)
-        var repeatPenalty = prefs.getFloat("gen_repeat_penalty", 1.08f).coerceIn(1f, 1.30f)
-        var batchSize = prefs.getInt("gen_batch", 64).coerceIn(32, 128)
+        var temperature = prefs.getFloat("gen_temperature", .70f)
+        var topP = prefs.getFloat("gen_top_p", .90f)
+        var topK = prefs.getInt("gen_top_k", 40).coerceIn(10, 80)
+        var repeatPenalty = prefs.getFloat("gen_repeat_penalty", 1.10f).coerceIn(1f, 1.30f)
+        var batchSize = prefs.getInt("gen_batch", 128).coerceIn(32, 128)
         var useMmap = prefs.getBoolean("gen_mmap", true)
         var flashAttention = prefs.getBoolean("gen_flash", false)
         fun addSlider(title: String, initial: Int, max: Int, label: (Int) -> String, changed: (Int) -> Unit) {
