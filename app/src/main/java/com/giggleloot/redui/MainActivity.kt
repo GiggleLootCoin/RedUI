@@ -1158,7 +1158,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         box.addView(button("MEMORY & KNOWLEDGE LIBRARY") { startActivity(Intent(this, MemoryStudioActivity::class.java)) })
         box.addView(button("CHAT & INTERFACE COLOUR") { showThemeColors() })
         box.addView(button("VOICE LIBRARY") { showVoiceChoices() })
-        box.addView(button("PERFORMANCE & MODEL CONTROLS") { showPerformanceSettings() })
+        box.addView(button("PERFORMANCE CENTER") { showPerformanceSettings() })
         box.addView(button("WEB SEARCH") { showWebSearch() })
         box.addView(button("ATTACH FILES / IMAGES") { pickAttachments.launch(arrayOf("*/*")) })
         box.addView(button("CLEAR ATTACHMENTS") { clearAttachments() })
