@@ -149,15 +149,53 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
     private val pickModel = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@registerForActivityResult
         lifecycleScope.launch(Dispatchers.IO) {
-            val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-                ?.use { if (it.moveToFirst()) it.getString(0) else "model.gguf" } ?: "model.gguf"
-            if (!name.endsWith(".gguf", true)) {
-                withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "RedUI only imports .GGUF model files. ZIP files are not models.", Toast.LENGTH_LONG).show() }
-                return@launch
+            var partial: File? = null
+            try {
+                val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { if (it.moveToFirst()) it.getString(0) else "model.gguf" } ?: "model.gguf"
+                if (!name.endsWith(".gguf", true)) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "RedUI only imports .GGUF model files. ZIP files are not models.", Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+                val declaredSize = contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+                    ?.use { if (it.moveToFirst()) it.getLong(0) else -1L } ?: -1L
+                val requiredSpace = if (declaredSize > 0L) declaredSize + 64L * 1024L * 1024L else 0L
+                if (requiredSpace > 0L && filesDir.usableSpace < requiredSpace) {
+                    throw IllegalStateException("Not enough free storage to safely import this GGUF. Free some space and try again.")
+                }
+                val target = store.destination(name)
+                target.parentFile?.mkdirs()
+                val temp = File(target.parentFile, target.name + ".partial")
+                partial = temp
+                if (temp.exists()) temp.delete()
+                withContext(Dispatchers.Main) { status.text = "LOCAL • importing GGUF • " + name }
+                val source = contentResolver.openInputStream(uri)
+                    ?: throw IllegalStateException("Android could not open the selected GGUF file.")
+                source.use { input -> temp.outputStream().use { output -> input.copyTo(output); output.flush() } }
+                if (!temp.isFile || temp.length() == 0L) {
+                    throw IllegalStateException("The selected GGUF was empty or the copy was interrupted.")
+                }
+                if (target.exists() && !target.delete()) {
+                    throw IllegalStateException("Could not replace the previous model file safely.")
+                }
+                if (!temp.renameTo(target)) {
+                    throw IllegalStateException("The GGUF copy completed but could not be moved into the model library.")
+                }
+                partial = null
+                withContext(Dispatchers.Main) {
+                    refresh(target.name)
+                    status.text = "LOCAL • GGUF imported • " + target.name
+                    Toast.makeText(this@MainActivity, "GGUF imported successfully.", Toast.LENGTH_SHORT).show()
+                }
+            } catch (error: Throwable) {
+                try { partial?.delete() } catch (_: Throwable) {}
+                withContext(Dispatchers.Main) {
+                    status.text = "LOCAL • model import failed"
+                    Toast.makeText(this@MainActivity, error.message ?: "Could not import the GGUF model.", Toast.LENGTH_LONG).show()
+                }
             }
-            val f = store.destination(name)
-            contentResolver.openInputStream(uri)?.use { a -> f.outputStream().use { b -> a.copyTo(b) } }
-            withContext(Dispatchers.Main) { refresh(f.name) }
         }
     }
     private val pickUserAvatar = registerForActivityResult(ActivityResultContracts.OpenDocument()) { saveImageUri("user_avatar", it) }

@@ -10,8 +10,8 @@ android {
         applicationId = "com.giggleloot.redui"
         minSdk = 29
         targetSdk = 35
-        versionCode = 166
-        versionName = "166"
+        versionCode = 167
+        versionName = "167"
     }
     splits {
         abi {

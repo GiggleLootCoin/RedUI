@@ -38,7 +38,7 @@ jobs:
       - name: Prepare bundled offline voice engine
         run: |
           mkdir -p app/libs app/src/main/assets/voices
-          wget -q --show-progress --tries=10 --waitretry=5 --retry-connrefused --timeout=45 -O app/libs/sherpa-onnx-1.13.8.aar "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar?download=1"
+          wget --show-progress --tries=10 --waitretry=5 --retry-connrefused --timeout=45 -O app/libs/sherpa-onnx-1.13.8.aar "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar?download=1"
           test -s app/libs/sherpa-onnx-1.13.8.aar
           voices=(
             "lessac|vits-piper-en_US-lessac-medium|en_US-lessac-medium.onnx"
@@ -54,7 +54,7 @@ jobs:
             IFS='|' read -r key dirname modelfile <<< "$spec"
             archive="/tmp/$dirname.tar.bz2"
             unpack="$(mktemp -d)"
-            wget -q --show-progress --tries=5 --timeout=30 -O "$archive" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$dirname.tar.bz2"
+            wget --show-progress --tries=10 --waitretry=5 --retry-connrefused --timeout=45 -O "$archive" "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/$dirname.tar.bz2"
             tar -xjf "$archive" --strip-components=1 -C "$unpack"
             test -s "$unpack/$modelfile"
             test -s "$unpack/tokens.txt"
@@ -72,9 +72,9 @@ jobs:
           done
           test -s app/src/main/assets/espeak-ng-data/en_dict
           mkdir -p /tmp/kitten-mini-en-v0_8 app/src/main/assets/kitten-mini
-          wget -q --show-progress --tries=5 --timeout=30 -O /tmp/kitten-mini-en-v0_8.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kitten-mini-en-v0_8.tar.bz2"
+          wget --show-progress --tries=10 --waitretry=5 --retry-connrefused --timeout=45 -O /tmp/kitten-mini-en-v0_8.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kitten-mini-en-v0_8.tar.bz2"
           tar -xjf /tmp/kitten-mini-en-v0_8.tar.bz2 --strip-components=1 -C /tmp/kitten-mini-en-v0_8
-          wget -q --tries=5 --timeout=30 -O /tmp/kitten-mini-en-v0_8/LICENSE "https://raw.githubusercontent.com/KittenML/KittenTTS/main/LICENSE"
+          curl -fL --retry 10 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 120 -o /tmp/kitten-mini-en-v0_8/LICENSE "https://raw.githubusercontent.com/KittenML/KittenTTS/main/LICENSE"
           printf '%s\\n' "Kitten TTS Mini 0.8 — KittenML" "Model: KittenML/kitten-tts-mini-0.8" "Eight speakers: Jasper, Bella, Bruno, Luna, Hugo, Rosie, Leo, Kiki" "Model card license: Apache-2.0" "Bundled in RedUI; model weights remain KittenML's." > /tmp/kitten-mini-en-v0_8/README.txt
           test -s /tmp/kitten-mini-en-v0_8/LICENSE
           test -s /tmp/kitten-mini-en-v0_8/model.onnx
@@ -281,7 +281,7 @@ jobs:
           grep -q 'class MemoryStudioActivity' app/src/main/java/com/giggleloot/redui/MemoryStudioActivity.kt
           grep -q 'MemoryStore(this).relevantContext(userPrompt)' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'MemoryStudioActivity' app/src/main/AndroidManifest.xml
-          grep -q 'versionCode = 166' app/build.gradle.kts
+          grep -q 'versionCode = 167' app/build.gradle.kts
           grep -q 'UserPersonaStore(this).promptContext()' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'PERFORMANCE CENTER' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'FASTEST POSSIBLE' app/src/main/java/com/giggleloot/redui/MainActivity.kt
@@ -293,7 +293,7 @@ jobs:
           grep -q 'source_processing' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
           grep -q 'class AttachmentReader' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
           grep -q 'readPdf' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
-          grep -q 'versionCode = 166' app/build.gradle.kts
+          grep -q 'versionCode = 167' app/build.gradle.kts
           grep -q 'com.google.mlkit:image-labeling:17.0.9' app/build.gradle.kts
           grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml
@@ -331,6 +331,11 @@ jobs:
           echo "APK: $APK"
           ls -lh "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > /tmp/redui-apk-badging.txt
+          grep -q "com.giggleloot.redui" /tmp/redui-apk-badging.txt
+          grep -q "versionCode='167'" /tmp/redui-apk-badging.txt
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/"
           unzip -l "$APK" | grep -q "assets/espeak-ng-data/en_dict"
           unzip -l "$APK" | grep -q "assets/kitten-mini/model.onnx"
           unzip -l "$APK" | grep -q "assets/kitten-mini/voices.bin"
@@ -356,11 +361,29 @@ jobs:
           done
           echo "All bundled offline voice models, phoneme data, previews, and APK signature verified."
 
+      - name: Create release checksums and build information
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/*.apk dist/
+          (
+            cd dist
+            sha256sum *.apk > SHA256SUMS.txt
+          )
+          {
+            echo "Release: RedUI v${GITHUB_RUN_NUMBER}"
+            echo "App version: 167"
+            echo "Package: com.giggleloot.redui"
+            echo "Minimum Android: 10 (API 29)"
+            echo "Commit: ${GITHUB_SHA}"
+            echo "Workflow run: ${GITHUB_RUN_ID}"
+          } > dist/BUILD-INFO.txt
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
         with:
           name: RedUI-release
-          path: app/build/outputs/**/*.apk
+          path: dist/*
           if-no-files-found: error
           retention-days: 90
 
@@ -370,5 +393,5 @@ jobs:
           tag_name: v${{ github.run_number }}
           name: RedUI v${{ github.run_number }}
           files: |
-            app/build/outputs/**/*.apk
+            dist/*
           generate_release_notes: true

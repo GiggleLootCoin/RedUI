@@ -93,7 +93,9 @@ class WebSearchService(context: Context) {
                         val purili = searchPurili(query)
                         if (purili.succeeded) purili else {
                             val wiki = searchWikipedia(query)
-                            WebSearchResult(emptyList(), "", web.error ?: purili.error ?: wiki.error)
+                            if (wiki.succeeded) wiki else {
+                                WebSearchResult(emptyList(), "", web.error ?: purili.error ?: wiki.error)
+                            }
                         }
                     }
                 }
