@@ -186,6 +186,9 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             webProvider = prefs.getString("web_provider", "purili") ?: "purili"
             if (currentChatId.isBlank() || chatStore.load(currentChatId) == null) currentChatId = UUID.randomUUID().toString()
             buildUi()
+            val savedProfile = prefs.getString("gen_preset", "").orEmpty()
+            val profileRevision = prefs.getInt("gen_preset_revision", 0)
+            if (savedProfile.isBlank() || (savedProfile == "AUTO" && profileRevision < 2)) applyAutoPerformancePreset()
         } catch (e: Throwable) {
             showStartupError(e)
             return
@@ -1199,23 +1202,37 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         manager.getMemoryInfo(info)
         val ramGiB = info.totalMem / (1024L * 1024L * 1024L)
         val processors = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+        val lowMemory = info.lowMemory || ramGiB < 4L
+        val contextTokens = when {
+            lowMemory -> 1024
+            ramGiB < 5L -> 1024
+            ramGiB < 7L -> 1536
+            else -> 2048
+        }
+        val replyTokens = if (lowMemory || ramGiB < 5L) 160 else 256
         val threads = minOf(4, maxOf(2, processors / 2))
+        val batch = when {
+            lowMemory || ramGiB < 5L -> 32
+            ramGiB < 7L -> 64
+            else -> 128
+        }
         prefs.edit()
             .putFloat("gen_temperature", .70f)
-            .putInt("gen_max_tokens", 256)
+            .putInt("gen_max_tokens", replyTokens)
             .putFloat("gen_top_p", .90f)
             .putInt("gen_top_k", 40)
             .putFloat("gen_repeat_penalty", 1.10f)
-            .putInt("gen_context", 2048)
+            .putInt("gen_context", contextTokens)
             .putInt("gen_threads", threads)
-            .putInt("gen_batch", 128)
+            .putInt("gen_batch", batch)
             .putString("gen_preset", "AUTO")
+            .putInt("gen_preset_revision", 2)
             .putBoolean("gen_mmap", true)
             .putBoolean("gen_flash", false)
             .putInt("gen_gpu_layers", 0)
             .apply()
         Toast.makeText(this,
-            "AUTO • " + ramGiB + " GB RAM • " + threads + " CPU threads • 2048 context • live memory and thermal protection enabled",
+            "AUTO • " + ramGiB + " GB RAM • " + threads + " CPU threads • " + contextTokens + " context • batch " + batch + " • live memory and thermal protection enabled",
             Toast.LENGTH_LONG).show()
     }
 
@@ -1235,7 +1252,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                 .putFloat("gen_repeat_penalty", 1.10f).putInt("gen_context", 2048)
                 .putInt("gen_threads", 4).putInt("gen_batch", 128)
         }
-        edit.putString("gen_preset", name).putBoolean("gen_mmap", true)
+        edit.putString("gen_preset", name).putInt("gen_preset_revision", 2).putBoolean("gen_mmap", true)
             .putBoolean("gen_flash", false).putInt("gen_gpu_layers", 0).apply()
         Toast.makeText(this, "$name profile saved. Live safety controls remain active.", Toast.LENGTH_SHORT).show()
     }
@@ -1259,7 +1276,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             android.os.PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown risk"
             else -> "Unknown"
         }
-        val summary = "DEVICE • $ramGiB GB RAM • $freeMiB MB available\nTHERMAL • $thermalLabel\nPROFILE • ${prefs.getString("gen_preset", "BEST PERFORMANCE")}\nDEFAULT TARGET • 2048 context • 4 threads • batch 128\nSAMPLING • temperature 0.70 • top-p 0.90 • top-k 40 • repeat 1.10\nMODEL • memory-mapped • CPU mode\nSAFETY • reduces context, batch and threads when memory or temperature requires it"
+        val summary = "DEVICE • $ramGiB GB RAM • $freeMiB MB available\nTHERMAL • $thermalLabel\nPROFILE • ${prefs.getString("gen_preset", "AUTO")}\nACTIVE • ${prefs.getInt("gen_context", 1024)} context • ${prefs.getInt("gen_max_tokens", 160)} reply tokens • ${prefs.getInt("gen_threads", 4)} CPU threads • batch ${prefs.getInt("gen_batch", 32)}\nSAMPLING • temperature ${prefs.getFloat("gen_temperature", .70f)} • top-p ${prefs.getFloat("gen_top_p", .90f)} • top-k ${prefs.getInt("gen_top_k", 40)} • repeat ${prefs.getFloat("gen_repeat_penalty", 1.10f)}\nMODEL • memory-mapped • CPU mode\nSAFETY • reduces context, batch and threads when memory or temperature requires it"
         val choices = arrayOf(
             "AUTO • best settings with live safety protection",
             "FASTEST POSSIBLE • 1K context, 128 batch",
@@ -1344,7 +1361,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                     .putFloat("gen_top_p", topP).putInt("gen_top_k", topK)
                     .putFloat("gen_repeat_penalty", repeatPenalty).putInt("gen_batch", batchSize)
                     .putBoolean("gen_mmap", useMmap).putBoolean("gen_flash", flashAttention)
-                    .putInt("gen_gpu_layers", 0).putString("gen_preset", "MANUAL").apply()
+                    .putInt("gen_gpu_layers", 0).putString("gen_preset", "MANUAL").putInt("gen_preset_revision", 2).apply()
                 Toast.makeText(this, "Manual performance settings saved.", Toast.LENGTH_SHORT).show()
             }.show()
     }

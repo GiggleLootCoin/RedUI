@@ -6,11 +6,10 @@ data class PerformanceSettings(
     val topP: Float = .90f,
     val topK: Int = 40,
     val repeatPenalty: Float = 1.10f,
-    val contextLength: Int = 2048,
+    val contextLength: Int = 1024,
     val numThreads: Int = 4,
     val useMmap: Boolean = true,
     val flashAttention: Boolean = false,
-    val batchSize: Int = 128,
+    val batchSize: Int = 32,
     val gpuLayers: Int = 0,
-    val minP: Float = .05f
 )

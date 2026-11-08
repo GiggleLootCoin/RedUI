@@ -38,7 +38,7 @@ jobs:
       - name: Prepare bundled offline voice engine
         run: |
           mkdir -p app/libs app/src/main/assets/voices
-          wget -q --show-progress --tries=5 --timeout=30 -O app/libs/sherpa-onnx-1.13.8.aar "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar?download=1"
+          wget -q --show-progress --tries=10 --waitretry=5 --retry-connrefused --timeout=45 -O app/libs/sherpa-onnx-1.13.8.aar "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar?download=1"
           test -s app/libs/sherpa-onnx-1.13.8.aar
           voices=(
             "lessac|vits-piper-en_US-lessac-medium|en_US-lessac-medium.onnx"
@@ -281,7 +281,7 @@ jobs:
           grep -q 'class MemoryStudioActivity' app/src/main/java/com/giggleloot/redui/MemoryStudioActivity.kt
           grep -q 'MemoryStore(this).relevantContext(userPrompt)' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'MemoryStudioActivity' app/src/main/AndroidManifest.xml
-          grep -q 'versionCode = 165' app/build.gradle.kts
+          grep -q 'versionCode = 166' app/build.gradle.kts
           grep -q 'UserPersonaStore(this).promptContext()' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'PERFORMANCE CENTER' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'FASTEST POSSIBLE' app/src/main/java/com/giggleloot/redui/MainActivity.kt
@@ -293,7 +293,7 @@ jobs:
           grep -q 'source_processing' app/src/main/java/com/giggleloot/redui/AiHordeImageService.kt
           grep -q 'class AttachmentReader' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
           grep -q 'readPdf' app/src/main/java/com/giggleloot/redui/AttachmentReader.kt
-          grep -q 'versionCode = 165' app/build.gradle.kts
+          grep -q 'versionCode = 166' app/build.gradle.kts
           grep -q 'com.google.mlkit:image-labeling:17.0.9' app/build.gradle.kts
           grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml
