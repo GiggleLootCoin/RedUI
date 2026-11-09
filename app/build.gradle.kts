@@ -3,7 +3,25 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val releaseKeystorePath = providers.environmentVariable("REDUI_RELEASE_KEYSTORE").orNull
+val releaseStorePassword = providers.environmentVariable("REDUI_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("REDUI_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("REDUI_RELEASE_KEY_PASSWORD").orNull
+val hasProductionSigning = listOf(
+    releaseKeystorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword
+).all { !it.isNullOrBlank() }
+
 android {
+    signingConfigs {
+        create("production") {
+            if (hasProductionSigning) {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
     namespace = "com.giggleloot.redui"
     compileSdk = 36
     defaultConfig {
@@ -24,7 +42,11 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasProductionSigning) {
+                signingConfigs.getByName("production")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {
