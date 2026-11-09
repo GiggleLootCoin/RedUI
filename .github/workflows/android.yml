@@ -2,11 +2,13 @@ name: Build RedUI APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: ["main"]
   push:
     branches: ["main"]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: redui-android-${{ github.ref }}
@@ -15,6 +17,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    outputs:
+      production_signing: ${{ steps.signing.outputs.configured }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
@@ -249,6 +253,30 @@ jobs:
           ls -lh app/src/main/assets/testvoices
           rm -rf /tmp/redui-tts /tmp/kitten-mini-en-v0_8 /tmp/kitten-mini-en-v0_8.tar.bz2
 
+      - name: Configure optional production signing
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.REDUI_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.REDUI_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.REDUI_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.REDUI_RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            KEYSTORE_PATH="$RUNNER_TEMP/redui-release.jks"
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+            test -s "$KEYSTORE_PATH"
+            {
+              echo "REDUI_RELEASE_KEYSTORE=$KEYSTORE_PATH"
+              echo "REDUI_RELEASE_STORE_PASSWORD=$STORE_PASSWORD"
+              echo "REDUI_RELEASE_KEY_ALIAS=$KEY_ALIAS"
+              echo "REDUI_RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "No complete production signing secret set; building a CI/test APK only."
+          fi
+
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
@@ -387,7 +415,21 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Publish GitHub Release
+
+  publish:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.production_signing == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified APKs and checksums
+        uses: actions/download-artifact@v6
+        with:
+          name: RedUI-release
+          path: dist
+
+      - name: Publish signed GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
