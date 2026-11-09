@@ -1,9 +1,6 @@
 package com.giggleloot.redui
 
-import android.content.Intent
 import android.graphics.Color
-import android.graphics.BitmapFactory
-import android.net.Uri
 import android.graphics.Typeface
 import android.os.Bundle
 import android.view.Gravity
@@ -12,12 +9,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.setPadding
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class CharacterStudioActivity : AppCompatActivity() {
     private lateinit var store: CharacterProfileStore
     private lateinit var list: LinearLayout
     private var pendingAvatar = ""
+    private var importingAvatar = false
     private var exportProfile: CharacterProfile? = null
 
     private val importCard = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -44,9 +46,20 @@ class CharacterStudioActivity : AppCompatActivity() {
 
     private val pickAvatar = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@registerForActivityResult
-        try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Throwable) {}
-        pendingAvatar = uri.toString()
-        Toast.makeText(this, "Portrait selected. Save the character to keep it.", Toast.LENGTH_SHORT).show()
+        importingAvatar = true
+        Toast.makeText(this, "Importing portrait into encrypted local storage…", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = runCatching { store.importAvatar(uri) }
+            withContext(Dispatchers.Main) {
+                importingAvatar = false
+                result.onSuccess {
+                    pendingAvatar = it
+                    Toast.makeText(this@CharacterStudioActivity, "Portrait imported privately. Save the character to keep it.", Toast.LENGTH_LONG).show()
+                }.onFailure {
+                    Toast.makeText(this@CharacterStudioActivity, "Portrait import failed: " + (it.message ?: "Could not read image."), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,7 +94,7 @@ class CharacterStudioActivity : AppCompatActivity() {
             setPadding(dp(16))
         }
         root.addView(text("CHARACTER STUDIO", 23f, Color.WHITE).apply { typeface = Typeface.DEFAULT_BOLD })
-        root.addView(text("Create, edit, duplicate, import and export portable character cards. Profiles stay on this phone unless you export them.", 12f).apply {
+        root.addView(text("Create, edit, duplicate, import and export portable character cards. Character profiles and portraits are stored encrypted locally. For strict privacy, choose files stored on this device; cloud providers may handle their own files independently of RedUI.", 12f).apply {
             setPadding(0, dp(5), 0, dp(12))
         })
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -126,10 +139,7 @@ class CharacterStudioActivity : AppCompatActivity() {
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setBackgroundColor(Color.rgb(42, 39, 45))
             }
-            val avatarBitmap = runCatching {
-                val uri = Uri.parse(profile.avatarUri)
-                contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-            }.getOrNull()
+            val avatarBitmap = store.loadAvatar(profile)
             if (avatarBitmap != null) avatar.setImageBitmap(avatarBitmap)
             else avatar.setImageResource(android.R.drawable.ic_menu_myplaces)
             hero.addView(avatar, LinearLayout.LayoutParams(dp(66), dp(66)))
@@ -269,8 +279,7 @@ class CharacterStudioActivity : AppCompatActivity() {
             "Jasper • natural male" to "kitten_0", "Bella • natural female" to "kitten_1",
             "Bruno • natural male" to "kitten_2", "Luna • natural female" to "kitten_3",
             "Hugo • natural male" to "kitten_4", "Rosie • natural female" to "kitten_5",
-            "Leo • natural male" to "kitten_6", "Kiki • natural female" to "kitten_7",
-            "Android system voice" to "android"
+            "Leo • natural male" to "kitten_6", "Kiki • natural female" to "kitten_7"
         )
         content.addView(text("CHARACTER VOICE", 10f, Color.rgb(232, 70, 78)).apply {
             typeface = Typeface.DEFAULT_BOLD; setPadding(0, dp(9), 0, dp(4))
@@ -288,6 +297,10 @@ class CharacterStudioActivity : AppCompatActivity() {
             .setView(scroll).setNegativeButton("CANCEL", null).setPositiveButton("SAVE", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                if (importingAvatar) {
+                    Toast.makeText(this, "Please let the portrait import finish first.", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
                 val cleanName = name.text.toString().trim()
                 if (cleanName.isBlank()) { name.error = "Give this character a name first."; return@setOnClickListener }
                 val selectedVoiceKey = voiceNames.getOrNull(voice.selectedItemPosition)?.second ?: "lessac"
