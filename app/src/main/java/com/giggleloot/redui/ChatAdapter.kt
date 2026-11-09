@@ -2,9 +2,11 @@ package com.giggleloot.redui
 
 import android.content.SharedPreferences
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.net.Uri
+import android.util.LruCache
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.text.util.Linkify
 import android.text.method.LinkMovementMethod
 import android.view.Gravity
@@ -26,6 +28,12 @@ class ChatAdapter(
         val label: TextView,
         val text: TextView
     ) : RecyclerView.ViewHolder(row)
+
+    private val avatarCache = object : LruCache<String, Bitmap>(4 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = (value.byteCount / 1024).coerceAtLeast(1)
+    }
+
+    fun clearAvatarCache() = avatarCache.evictAll()
 
     private fun Int.dp(view: android.view.View): Int =
         (this * view.resources.displayMetrics.density).toInt()
@@ -115,13 +123,19 @@ class ChatAdapter(
         holder.text.movementMethod = LinkMovementMethod.getInstance()
         holder.text.setLinkTextColor(accent)
         val avatarKey = if (user) "user_avatar" else "ai_avatar"
-        val uri = prefs.getString(avatarKey, null)
-        if (uri != null) {
-            try { holder.avatar.setImageURI(Uri.parse(uri)) }
-            catch (_: Exception) { holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f))) }
-        } else {
-            holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f)))
-        }
+        val reference = prefs.getString(avatarKey, null)
+        val avatarBitmap = if (reference?.startsWith("vault:") == true) {
+            avatarCache.get(reference) ?: runCatching {
+                PrivateMediaStore.loadBitmap(holder.itemView.context, reference)?.also {
+                    avatarCache.put(reference, it)
+                }
+            }.getOrNull()
+        } else null
+        if (avatarBitmap != null) holder.avatar.setImageBitmap(avatarBitmap)
+        else if (!reference.isNullOrBlank() && !reference.startsWith("vault:")) {
+            runCatching { holder.avatar.setImageURI(Uri.parse(reference)) }
+                .onFailure { holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f))) }
+        } else holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f)))
         val maxBubble = (holder.row.resources.displayMetrics.widthPixels - dp(90)).coerceAtLeast(dp(180))
         val bubbleParams = LinearLayout.LayoutParams(dp(276).coerceAtMost(maxBubble), -2)
         if (user) {
