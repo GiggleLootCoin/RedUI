@@ -1788,21 +1788,54 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
     }
 
     private fun saveImageUri(key:String,uri:Uri?){
-        uri?:return
-        try{contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)}catch(_:Exception){}
-        prefs.edit().putString(key,uri.toString()).apply()
-        if(key=="wallpaper")applyWallpaper()
-        if(::adapter.isInitialized)adapter.notifyDataSetChanged()
+        uri ?: return
+        status.text = "PRIVATE • importing image into encrypted storage"
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = runCatching {
+                PrivateMediaStore.importUri(this@MainActivity, uri, key, if (key == "wallpaper") 2048 else 640)
+            }
+            withContext(Dispatchers.Main) {
+                result.onSuccess { reference ->
+                    prefs.edit().putString(key, reference).apply()
+                    if (key == "wallpaper") applyWallpaper()
+                    if (::adapter.isInitialized) {
+                        adapter.clearAvatarCache()
+                        adapter.notifyDataSetChanged()
+                    }
+                    status.text = "PRIVATE • image stored encrypted locally"
+                }.onFailure {
+                    status.text = "IMAGE IMPORT FAILED • " + (it.message ?: "Could not import the image.")
+                }
+            }
+        }
     }
 
     private fun applyWallpaper(){
         if(!::wallpaper.isInitialized)return
-        val s=prefs.getString("wallpaper",null)
-        try{
-            if(s.isNullOrBlank()){wallpaper.setImageResource(R.drawable.lobby_hero)}
-            else{wallpaper.setImageURI(Uri.parse(s))}
-            wallpaper.visibility=View.VISIBLE
-        }catch(_:Exception){try{wallpaper.setImageResource(R.drawable.lobby_hero);wallpaper.visibility=View.VISIBLE}catch(_:Throwable){wallpaper.visibility=View.GONE}}
+        val reference = prefs.getString("wallpaper", null)
+        if (reference.isNullOrBlank()) {
+            wallpaper.setImageResource(R.drawable.lobby_hero)
+            wallpaper.visibility = View.VISIBLE
+            return
+        }
+        if (reference.startsWith("vault:")) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val bitmap = runCatching { PrivateMediaStore.loadBitmap(this@MainActivity, reference) }.getOrNull()
+                withContext(Dispatchers.Main) {
+                    if (bitmap != null) wallpaper.setImageBitmap(bitmap)
+                    else wallpaper.setImageResource(R.drawable.lobby_hero)
+                    wallpaper.visibility = View.VISIBLE
+                }
+            }
+        } else {
+            try {
+                wallpaper.setImageURI(Uri.parse(reference))
+                wallpaper.visibility = View.VISIBLE
+            } catch (_: Throwable) {
+                wallpaper.setImageResource(R.drawable.lobby_hero)
+                wallpaper.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun refresh(selected:String?=null){
