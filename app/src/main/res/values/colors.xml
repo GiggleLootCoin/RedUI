@@ -1,1 +1,4 @@
-<resources><color name="black">#090909</color><color name="red">#E31B23</color></resources>
+<resources>
+    <color name="black">#080709</color>
+    <color name="red">#EF2D3A</color>
+</resources>
