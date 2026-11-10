@@ -437,3 +437,38 @@ jobs:
           files: |
             dist/*
           generate_release_notes: true
+
+  publish-test:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.production_signing != 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified APKs and checksums
+        uses: actions/download-artifact@v6
+        with:
+          name: RedUI-release
+          path: dist
+
+      - name: Keep the Galaxy A12 ARM64 installer
+        run: |
+          test -s dist/app-arm64-v8a-release.apk
+          rm -f dist/app-universal-release.apk
+          ls -lh dist/
+
+      - name: Publish clearly labelled test release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}-test
+          name: RedUI v${{ github.run_number }} — TEST INSTALLER
+          prerelease: true
+          files: |
+            dist/app-arm64-v8a-release.apk
+            dist/SHA256SUMS.txt
+            dist/BUILD-INFO.txt
+          body: |
+            This is a CI/test-signed ARM64 installer, published because no permanent release-signing key is configured yet.
+            It is suitable for a fresh test installation on compatible Android ARM64 devices.
+            It is not a production-signed update channel. Future updates require a stable private signing key.
+            SHA256SUMS.txt contains checksums for the build outputs.
