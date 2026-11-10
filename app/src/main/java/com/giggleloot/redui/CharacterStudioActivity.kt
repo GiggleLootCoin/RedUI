@@ -94,7 +94,7 @@ class CharacterStudioActivity : AppCompatActivity() {
             setPadding(dp(16))
         }
         root.addView(text("CHARACTER STUDIO", 23f, Color.WHITE).apply { typeface = Typeface.DEFAULT_BOLD })
-        root.addView(text("Create, edit, duplicate, import and export portable character cards. Character profiles and portraits are stored encrypted locally. For strict privacy, choose files stored on this device; cloud providers may handle their own files independently of RedUI.", 12f).apply {
+        root.addView(text("Create, edit, duplicate, import and export portable character cards. Character profiles and portraits are stored encrypted locally. For strict privacy, choose files stored on this device; cloud providers may handle their own files independently of RedAI.", 12f).apply {
             setPadding(0, dp(5), 0, dp(12))
         })
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -125,7 +125,7 @@ class CharacterStudioActivity : AppCompatActivity() {
         val active = store.activeId()
         val profiles = store.all()
         if (profiles.isEmpty()) {
-            list.addView(text("No character cards yet. Create one to give RedUI a distinct roleplay persona, voice and scenario.", 13f))
+            list.addView(text("No character cards yet. Create one to give RedAI a distinct roleplay persona, voice and scenario.", 13f))
             return
         }
         profiles.forEach { profile ->
@@ -273,7 +273,7 @@ class CharacterStudioActivity : AppCompatActivity() {
         val examples = add("EXAMPLE DIALOGUE", existing?.exampleDialogue.orEmpty(), "Optional example exchanges to guide dialogue style.")
         val instructions = add("ADVANCED SYSTEM INSTRUCTIONS", existing?.systemPrompt.orEmpty(), "Extra character instructions. Core safety, privacy and truth rules remain in force.")
         val voiceNames = listOf(
-            "RedUI Clear • Lessac" to "lessac", "British • Cori" to "cori", "British • Alan" to "alan",
+            "RedAI Clear • Lessac" to "lessac", "British • Cori" to "cori", "British • Alan" to "alan",
             "British • Alba" to "alba", "British • Jenny" to "jenny_dioco",
             "Northern British • Male" to "northern_english_male",
             "Jasper • natural male" to "kitten_0", "Bella • natural female" to "kitten_1",
