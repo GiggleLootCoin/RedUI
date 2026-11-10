@@ -114,9 +114,9 @@ class AiHordeImageService(private val context: Context) {
             }
         } finally { decoded.recycle() }
         val folder = File(context.filesDir, "generated_images").apply { mkdirs() }
-        val output = File(folder, "RedUI_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().take(8) + ".png")
+        val output = File(folder, "RedAI_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().take(8) + ".png")
         output.writeBytes(png.toByteArray())
-        onStatus("Saved privately in your RedUI image gallery.")
+        onStatus("Saved privately in your RedAI image gallery.")
         return HordeImageResult(output, queue, wait)
     }
 
@@ -154,7 +154,7 @@ class AiHordeImageService(private val context: Context) {
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("apikey", anonymousKey)
-            setRequestProperty("Client-Agent", "RedUI:162:https://github.com/GiggleLootCoin/RedUI")
+            setRequestProperty("Client-Agent", "RedAI:162:https://github.com/GiggleLootCoin/RedAI")
         }
         try {
             connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
@@ -173,7 +173,7 @@ class AiHordeImageService(private val context: Context) {
             readTimeout = 25000
             setRequestProperty("Accept", "application/json")
             setRequestProperty("apikey", anonymousKey)
-            setRequestProperty("Client-Agent", "RedUI:162:https://github.com/GiggleLootCoin/RedUI")
+            setRequestProperty("Client-Agent", "RedAI:162:https://github.com/GiggleLootCoin/RedAI")
         }
         try {
             val code = connection.responseCode
@@ -191,7 +191,7 @@ class AiHordeImageService(private val context: Context) {
             connectTimeout = 15000
             readTimeout = 30000
             instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "RedUI/162 (+https://github.com/GiggleLootCoin/RedUI)")
+            setRequestProperty("User-Agent", "RedAI/162 (+https://github.com/GiggleLootCoin/RedAI)")
         }
         try {
             val code = connection.responseCode
