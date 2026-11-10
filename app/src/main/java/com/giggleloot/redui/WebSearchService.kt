@@ -115,8 +115,8 @@ class WebSearchService(context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.w("RedUIWebSearch", "Search failed: " + e.javaClass.simpleName)
-            WebSearchResult(emptyList(), "", "Live search failed (" + e.javaClass.simpleName + "). RedUI did not receive search results.")
+            Log.w("RedAIWebSearch", "Search failed: " + e.javaClass.simpleName)
+            WebSearchResult(emptyList(), "", "Live search failed (" + e.javaClass.simpleName + "). RedAI did not receive search results.")
         }
     }
 
@@ -127,7 +127,7 @@ class WebSearchService(context: Context) {
             requestMethod = "GET"
             connectTimeout = 6000
             readTimeout = 8000
-            setRequestProperty("User-Agent", "RedUI/161 (offline-first assistant; search integration)")
+            setRequestProperty("User-Agent", "RedAI/161 (offline-first assistant; search integration)")
             setRequestProperty("Accept", "application/json")
         }
         try {
@@ -162,7 +162,7 @@ class WebSearchService(context: Context) {
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Authorization", "Bearer $key")
-            setRequestProperty("User-Agent", "RedUI/161")
+            setRequestProperty("User-Agent", "RedAI/161")
         }
         try {
             val payload = JSONObject().put("query", query.take(500))
@@ -200,7 +200,7 @@ class WebSearchService(context: Context) {
             requestMethod = "GET"
             connectTimeout = 7000
             readTimeout = 10000
-            setRequestProperty("User-Agent", "RedUI/2026 (mobile web search)")
+            setRequestProperty("User-Agent", "RedAI/2026 (mobile web search)")
             setRequestProperty("Accept", "application/json")
         }
         try {
@@ -241,7 +241,7 @@ class WebSearchService(context: Context) {
             requestMethod = "GET"
             connectTimeout = 4500
             readTimeout = 6500
-            setRequestProperty("User-Agent", "RedUI/2026 (mobile web research)")
+            setRequestProperty("User-Agent", "RedAI/2026 (mobile web research)")
             setRequestProperty("Accept", "application/json")
         }
         try {
@@ -315,7 +315,7 @@ class WebSearchService(context: Context) {
                 instanceFollowRedirects = false
                 connectTimeout = 3500
                 readTimeout = 4500
-                setRequestProperty("User-Agent", "RedUI/161 (mobile web research)")
+                setRequestProperty("User-Agent", "RedAI/161 (mobile web research)")
                 setRequestProperty("Accept", "text/html")
             }
             try {
