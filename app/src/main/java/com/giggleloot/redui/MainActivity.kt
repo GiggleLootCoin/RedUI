@@ -201,12 +201,39 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             }
         }
     }
+    private val redAiBrainSha256 = "cae181d040062a935aa03f16798d3615bf2d4256ffa292ffa820be8e346ea628"
+
+    private fun sha256File(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered(256 * 1024).use { input ->
+            val buffer = ByteArray(256 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
     private fun downloadRecommendedBrain() {
         val modelSize = 1_107_408_736L
         val target = store.destination("RedAI.gguf")
         if (target.isFile && target.length() == modelSize) {
-            refresh(target.name)
-            status.text = "LOCAL • RedAI brain already installed"
+            status.text = "LOCAL • verifying installed RedAI brain…"
+            lifecycleScope.launch(Dispatchers.IO) {
+                val valid = runCatching { sha256File(target) == redAiBrainSha256 }.getOrDefault(false)
+                withContext(Dispatchers.Main) {
+                    if (valid) {
+                        refresh(target.name)
+                        status.text = "LOCAL • RedAI brain verified and ready"
+                    } else {
+                        target.delete()
+                        status.text = "LOCAL • installed model failed integrity check; reinstall required"
+                        Toast.makeText(this@MainActivity, "The stored model did not pass its SHA-256 check. Please install it again.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
             return
         }
         AlertDialog.Builder(this)
@@ -216,6 +243,8 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             .setPositiveButton("DOWNLOAD MODEL") { _, _ ->
                 lifecycleScope.launch(Dispatchers.IO) {
                     val temp = File(target.parentFile, target.name + ".partial")
+                    var checksumConnection: HttpURLConnection? = null
+                    var connection: HttpURLConnection? = null
                     try {
                         val required = modelSize + 96L * 1024L * 1024L
                         if (filesDir.usableSpace < required) {
@@ -224,7 +253,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         target.parentFile?.mkdirs()
                         if (temp.exists()) temp.delete()
                         withContext(Dispatchers.Main) { status.text = "REDAI • downloading model • 0%" }
-                        val checksumConnection = (URL("https://github.com/GiggleLootCoin/RedAI/releases/download/redai-latest/RedAI.gguf.sha256").openConnection() as HttpURLConnection).apply {
+                        checksumConnection = (URL("https://github.com/GiggleLootCoin/RedAI/releases/download/redai-latest/RedAI.gguf.sha256").openConnection() as HttpURLConnection).apply {
                             connectTimeout = 20000
                             readTimeout = 30000
                             instanceFollowRedirects = true
@@ -232,9 +261,11 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         }
                         val checksumText = checksumConnection.inputStream.bufferedReader().use { it.readText() }
                         checksumConnection.disconnect()
+                        checksumConnection = null
                         val expectedHash = Regex("(?i)\\b[0-9a-f]{64}\\b").find(checksumText)?.value?.lowercase()
                             ?: throw IllegalStateException("The official RedAI model checksum could not be read. No model was installed.")
-                        val connection = (URL("https://github.com/GiggleLootCoin/RedAI/releases/download/redai-latest/RedAI.gguf").openConnection() as HttpURLConnection).apply {
+                        if (expectedHash != redAiBrainSha256) throw IllegalStateException("The published model checksum differs from the trusted RedAI release. Installation stopped.")
+                        connection = (URL("https://github.com/GiggleLootCoin/RedAI/releases/download/redai-latest/RedAI.gguf").openConnection() as HttpURLConnection).apply {
                             connectTimeout = 30000
                             readTimeout = 90000
                             instanceFollowRedirects = true
@@ -261,9 +292,10 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                             }
                         }
                         connection.disconnect()
+                        connection = null
                         if (copied != modelSize) throw IllegalStateException("The download was incomplete (" + copied + " of " + modelSize + " bytes). Try again on a stable Wi-Fi connection.")
                         val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
-                        if (actualHash != expectedHash) throw IllegalStateException("The model checksum did not match the official release. The file was rejected.")
+                        if (actualHash != expectedHash || actualHash != redAiBrainSha256) throw IllegalStateException("The model checksum did not match the trusted RedAI release. The file was rejected.")
                         if (target.exists() && !target.delete()) throw IllegalStateException("Could not replace the existing model safely.")
                         if (!temp.renameTo(target)) throw IllegalStateException("The verified model could not be moved into RedAI storage.")
                         withContext(Dispatchers.Main) {
@@ -277,6 +309,9 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                             status.text = "LOCAL • model installation failed"
                             Toast.makeText(this@MainActivity, error.message ?: "Could not install the RedAI brain.", Toast.LENGTH_LONG).show()
                         }
+                    } finally {
+                        try { checksumConnection?.disconnect() } catch (_: Throwable) {}
+                        try { connection?.disconnect() } catch (_: Throwable) {}
                     }
                 }
             }
