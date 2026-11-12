@@ -8,7 +8,7 @@ This branch rebuilds the main Android screen and visual identity while retaining
 
 ## Current model setup
 
-The current underlying app build still imports a compatible GGUF model into private app storage. The single-install package with the selected RedAI model bundled inside is a separate integration step and is not claimed as complete by this UI redesign.
+RedAI is delivered as one Android application. The 1.1 GB RedAI Q4_K_M GGUF is installed into the app's private storage through the in-app **INSTALL REDAI BRAIN** action; users do not need to locate or manually import the model file. The first-run installer asks for confirmation, recommends Wi-Fi, checks available storage, downloads the official release and SHA-256 sidecar, verifies the complete model before activation, and removes incomplete downloads. The model remains a separate large download rather than being embedded in the APK, keeping the app installer practical for Android distribution. Manual GGUF import remains available for compatible alternative models.
 
 ## Brand
 
