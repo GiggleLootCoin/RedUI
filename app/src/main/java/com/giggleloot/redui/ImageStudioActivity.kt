@@ -79,7 +79,7 @@ class ImageStudioActivity : AppCompatActivity() {
             setBackgroundColor(Color.rgb(8, 8, 11))
             setPadding(dp(15))
         }
-        root.addView(label("REDUI • IMAGE STUDIO", 23f).apply {
+        root.addView(label("REDAI • IMAGE STUDIO", 23f).apply {
             setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD
         })
         root.addView(label("Free volunteer-powered generation • text-to-image and image-to-image", 11f).apply {
@@ -192,7 +192,7 @@ class ImageStudioActivity : AppCompatActivity() {
                     latestImage = result.file
                     val bitmap = BitmapFactory.decodeFile(result.file.absolutePath)
                     preview.setImageBitmap(bitmap)
-                    status.text = "COMPLETE • saved to RedUI gallery • queue position " +
+                    status.text = "COMPLETE • saved to RedAI gallery • queue position " +
                         (if (result.queuePosition >= 0) result.queuePosition else "not reported") +
                         (if (result.waitSeconds >= 0) " • estimated wait " + result.waitSeconds + "s" else "")
                     Toast.makeText(this@ImageStudioActivity, "Image generated and saved on this phone.", Toast.LENGTH_LONG).show()
@@ -225,12 +225,12 @@ class ImageStudioActivity : AppCompatActivity() {
         val files = folder.listFiles { file -> file.isFile && file.extension.lowercase() in setOf("png", "jpg", "jpeg", "webp") }
             ?.sortedByDescending { it.lastModified() }.orEmpty()
         if (files.isEmpty()) {
-            AlertDialog.Builder(this).setTitle("RedUI image gallery")
+            AlertDialog.Builder(this).setTitle("RedAI image gallery")
                 .setMessage("No generated images have been saved on this phone yet.")
                 .setPositiveButton("CLOSE", null).show()
             return
         }
-        AlertDialog.Builder(this).setTitle("RedUI gallery • " + files.size + " images")
+        AlertDialog.Builder(this).setTitle("RedAI gallery • " + files.size + " images")
             .setItems(files.map { it.name }.toTypedArray()) { _, which ->
                 latestImage = files[which]
                 preview.setImageBitmap(BitmapFactory.decodeFile(files[which].absolutePath))

@@ -1,43 +1,27 @@
-# RedUI
+# RedAI
 
-RedUI is a free Android interface for local GGUF chat, voice conversations, character profiles, private local chat history and memory, web research, file/image attachments, and image creation.
+**RedAI** is an Android AI studio created by **Red aka LittleRedBigSmile**. This project is being brought together as one branded app, with a cleaner premium black-and-crimson interface and the RedAI assistant identity.
 
-**Creator:** Red aka LittleRedBigSmile. RedUI and its RedAI assistant identity are separate from the underlying foundation model.
+## Current development branch
 
-## Install
+This branch rebuilds the main Android screen and visual identity while retaining the existing native chat, local GGUF inference, saved conversations, privacy storage, character profiles, offline voice library, hands-free voice controls, web research, attachments, OCR and image studio.
 
-1. Download the **ARM64 APK** from [GitHub Releases](https://github.com/GiggleLootCoin/RedUI/releases/latest).
-2. Install it on an Android ARM64 device (Android 10 or newer).
-3. Download a compatible `.gguf` model, such as the [RedAI MiniCPM5-1B Q4_K_M model](https://github.com/GiggleLootCoin/RedAI/releases/download/redai-minicpm5-candidate/RedAI-MiniCPM5-1B-Q4_K_M.gguf).
-4. In RedUI, import the GGUF file through the model picker. The model is stored in the app's private local storage.
+## Current model setup
 
-The APK does not contain the GGUF brain; import the model separately so you can choose or replace models.
+RedAI is delivered as one Android application. The 1.1 GB RedAI Q4_K_M GGUF is installed into the app's private storage through the in-app **INSTALL REDAI BRAIN** action; users do not need to locate or manually import the model file. The first-run installer asks for confirmation, recommends Wi-Fi, checks available storage, downloads the official release and SHA-256 sidecar, verifies the complete model before activation, and removes incomplete downloads. The model remains a separate large download rather than being embedded in the APK, keeping the app installer practical for Android distribution. Manual GGUF import remains available for compatible alternative models.
 
-## Included features
+## Brand
 
-- Local GGUF inference with streamed replies and memory-mapped model loading.
-- RedAI system identity and the creator-supplied Red's Ways Of Thinking framework.
-- Saved chats, delete controls, user profiles, character profiles and character-card import.
-- Offline English voice library, including British voices, preview clips and speaker choices.
-- Talk Live controls, Android speech recognition and hands-free conversation.
-- Web search with provider/privacy controls. Web requests require an internet connection.
-- File and image attachments, text extraction/OCR, and image studio.
-- Red/black interface, custom wallpaper and accent colour.
-- Performance Center with AUTO, FASTEST POSSIBLE, BEST PERFORMANCE, DEEP REASONING and manual profiles.
+- Product: **RedAI**
+- Creator and developer: **Red aka LittleRedBigSmile**
+- Interface: native Android
+- Visual direction: premium black, deep charcoal and vivid crimson
+- Privacy: local inference and local conversation storage; network features are optional and disclose their external providers
 
-## Performance defaults
+## Build and verification
 
-The standard best-performance target is temperature 0.70, top-p 0.90, top-k 40, repeat penalty 1.10, 2,048-token context, four CPU threads, batch 128 and memory mapping. RedUI checks available memory and Android thermal status before inference and reduces context/batch/threads when the phone needs protection. Model configuration changes trigger a reload so context and batch settings actually take effect.
+The Android workflow builds an ARM64 APK and a universal test APK. A successful CI build does not replace physical-device testing. Galaxy A12 installation, model loading, inference speed, thermals, microphone behavior and bundled voice playback must be verified on-device before a public paid release.
 
-**Sampling limitation:** the currently integrated Llamatik 1.10.1 public `LlamaBridge.updateGenerateParams` API does not expose min-p. The RedUI settings data model retains a 0.05 target, but this version of the native bridge cannot apply it. RedUI does not claim otherwise.
+## Licensing and release readiness
 
-## Privacy notes
-
-- GGUF inference and saved chat/memory data are handled locally by the app.
-- Web search sends the search query to the selected external search provider.
-- Image generation uses the external AI Horde volunteer network. Prompts and optional source images are sent to that service and processed by volunteer workers. Review the in-app disclosure before sending anything private.
-- Android speech recognition and system TTS availability depend on the speech services installed on the device.
-
-## Device verification
-
-The release workflow builds, signs and checks the APK and confirms bundled voice assets are present. A successful CI build is not the same as a physical-device test. Galaxy A12 installation, inference speed, thermals and microphone behavior still need to be verified on the handset.
+Before commercial distribution, verify the licenses and redistribution terms for every bundled model, voice, native library and third-party asset. Do not advertise the one-download built-in-model experience until the model is actually included and tested.

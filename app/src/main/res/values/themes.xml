@@ -2,12 +2,12 @@
 <style name="Theme.RedUI" parent="Theme.MaterialComponents.DayNight.NoActionBar">
     <item name="android:fontFamily">sans</item>
     <item name="android:windowLightStatusBar">false</item>
-    <item name="android:statusBarColor">#070707</item>
-    <item name="android:navigationBarColor">#070707</item>
-    <item name="android:windowBackground">#070707</item>
-    <item name="android:colorAccent">#E31B23</item>
-    <item name="colorPrimary">#E31B23</item>
-    <item name="colorPrimaryVariant">#A80F17</item>
-    <item name="colorSecondary">#FF4B52</item>
+    <item name="android:statusBarColor">#080709</item>
+    <item name="android:navigationBarColor">#080709</item>
+    <item name="android:windowBackground">#080709</item>
+    <item name="android:colorAccent">#EF2D3A</item>
+    <item name="colorPrimary">#EF2D3A</item>
+    <item name="colorPrimaryVariant">#A91626</item>
+    <item name="colorSecondary">#FF6870</item>
 </style>
 </resources>

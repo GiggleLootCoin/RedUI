@@ -72,7 +72,7 @@ class MemoryStudioActivity : AppCompatActivity() {
         })
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         row.addView(action("＋ NEW NOTE", true) { edit(null) }, LinearLayout.LayoutParams(0, dp(46), 1f))
-        row.addView(action("BACK UP") { exporting = store.exportJson(); exportBackup.launch("RedUI_Memory_Backup.json") },
+        row.addView(action("BACK UP") { exporting = store.exportJson(); exportBackup.launch("RedAI_Memory_Backup.json") },
             LinearLayout.LayoutParams(0, dp(46), 1f).apply { leftMargin = dp(5) })
         row.addView(action("IMPORT") { importBackup.launch(arrayOf("application/json", "text/plain", "*/*")) },
             LinearLayout.LayoutParams(0, dp(46), 1f).apply { leftMargin = dp(5) })
