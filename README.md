@@ -8,7 +8,7 @@ This branch rebuilds the main Android screen and visual identity while retaining
 
 ## Current model setup
 
-RedAI is delivered as one Android application. The 1.1 GB RedAI Q4_K_M GGUF is installed into the app's private storage through the in-app **INSTALL REDAI BRAIN** action; users do not need to locate or manually import the model file. The first-run installer asks for confirmation, recommends Wi-Fi, checks available storage, downloads the official release and SHA-256 sidecar, verifies the complete model before activation, and removes incomplete downloads. The model remains a separate large download rather than being embedded in the APK, keeping the app installer practical for Android distribution. Manual GGUF import remains available for compatible alternative models.
+RedAI is delivered as one Android application. The 1.1 GB RedAI Q4_K_M GGUF is installed into the app's private storage through the in-app **INSTALL REDAI BRAIN** action; users do not need to locate or manually import the model file. The first-run installer asks for confirmation, recommends Wi-Fi, checks available storage, downloads the official release and SHA-256 sidecar, checks the sidecar against the pinned release digest, verifies the complete model before activation, and removes incomplete downloads. An existing model is re-verified before RedAI treats it as installed. The model remains a separate large download rather than being embedded in the APK, keeping the app installer practical for Android distribution. Manual GGUF import remains available for compatible alternative models.
 
 ## Brand
 
@@ -20,7 +20,7 @@ RedAI is delivered as one Android application. The 1.1 GB RedAI Q4_K_M GGUF is i
 
 ## Build and verification
 
-The Android workflow builds an ARM64 APK and a universal test APK. A successful CI build does not replace physical-device testing. Galaxy A12 installation, model loading, inference speed, thermals, microphone behavior and bundled voice playback must be verified on-device before a public paid release.
+The Android workflow builds and verifies an ARM64 APK for compatible Android devices (including ARM64 Galaxy A-series phones). A successful CI build does not replace physical-device testing. Galaxy A12 installation, model loading, inference speed, thermals, microphone behavior and bundled voice playback must be verified on-device before a public paid release.
 
 ## Licensing and release readiness
 
