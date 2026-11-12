@@ -47,6 +47,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
 
@@ -198,6 +201,88 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             }
         }
     }
+    private fun downloadRecommendedBrain() {
+        val modelSize = 1_107_408_736L
+        val target = store.destination("RedAI.gguf")
+        if (target.isFile && target.length() == modelSize) {
+            refresh(target.name)
+            status.text = "LOCAL • RedAI brain already installed"
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Install the RedAI brain?")
+            .setMessage("This installs RedAI's verified 1.1 GB GGUF model directly into the app's private storage. It is a one-time download, not a manual file import. Wi-Fi is strongly recommended. Keep the app open and allow enough free storage.")
+            .setNegativeButton("NOT NOW", null)
+            .setPositiveButton("DOWNLOAD MODEL") { _, _ ->
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val temp = File(target.parentFile, target.name + ".partial")
+                    try {
+                        val required = modelSize + 96L * 1024L * 1024L
+                        if (filesDir.usableSpace < required) {
+                            throw IllegalStateException("RedAI needs about 1.2 GB of free storage to install this model safely.")
+                        }
+                        target.parentFile?.mkdirs()
+                        if (temp.exists()) temp.delete()
+                        withContext(Dispatchers.Main) { status.text = "REDAI • downloading model • 0%" }
+                        val checksumConnection = (URL("https://github.com/GiggleLootCoin/RedAI/releases/download/redai-latest/RedAI.gguf.sha256").openConnection() as HttpURLConnection).apply {
+                            connectTimeout = 20000
+                            readTimeout = 30000
+                            instanceFollowRedirects = true
+                            setRequestProperty("User-Agent", "RedAI-Android")
+                        }
+                        val checksumText = checksumConnection.inputStream.bufferedReader().use { it.readText() }
+                        checksumConnection.disconnect()
+                        val expectedHash = Regex("(?i)\\b[0-9a-f]{64}\\b").find(checksumText)?.value?.lowercase()
+                            ?: throw IllegalStateException("The official RedAI model checksum could not be read. No model was installed.")
+                        val connection = (URL("https://github.com/GiggleLootCoin/RedAI/releases/download/redai-latest/RedAI.gguf").openConnection() as HttpURLConnection).apply {
+                            connectTimeout = 30000
+                            readTimeout = 90000
+                            instanceFollowRedirects = true
+                            setRequestProperty("User-Agent", "RedAI-Android")
+                        }
+                        if (connection.responseCode !in 200..299) throw IllegalStateException("Model download failed: HTTP " + connection.responseCode)
+                        val digest = MessageDigest.getInstance("SHA-256")
+                        var copied = 0L
+                        connection.inputStream.use { input ->
+                            temp.outputStream().buffered(256 * 1024).use { output ->
+                                val buffer = ByteArray(256 * 1024)
+                                while (true) {
+                                    val count = input.read(buffer)
+                                    if (count < 0) break
+                                    output.write(buffer, 0, count)
+                                    digest.update(buffer, 0, count)
+                                    copied += count
+                                    if (copied > modelSize) throw IllegalStateException("The downloaded model is larger than the published release. Download stopped.")
+                                    if (copied % (8L * 1024L * 1024L) < buffer.size) {
+                                        val percent = (copied * 100L / modelSize).toInt().coerceIn(0, 99)
+                                        withContext(Dispatchers.Main) { status.text = "REDAI • downloading model • " + percent + "%" }
+                                    }
+                                }
+                            }
+                        }
+                        connection.disconnect()
+                        if (copied != modelSize) throw IllegalStateException("The download was incomplete (" + copied + " of " + modelSize + " bytes). Try again on a stable Wi-Fi connection.")
+                        val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
+                        if (actualHash != expectedHash) throw IllegalStateException("The model checksum did not match the official release. The file was rejected.")
+                        if (target.exists() && !target.delete()) throw IllegalStateException("Could not replace the existing model safely.")
+                        if (!temp.renameTo(target)) throw IllegalStateException("The verified model could not be moved into RedAI storage.")
+                        withContext(Dispatchers.Main) {
+                            refresh(target.name)
+                            status.text = "LOCAL • verified RedAI brain installed"
+                            Toast.makeText(this@MainActivity, "RedAI brain installed and checksum verified.", Toast.LENGTH_LONG).show()
+                        }
+                    } catch (error: Throwable) {
+                        try { temp.delete() } catch (_: Throwable) {}
+                        withContext(Dispatchers.Main) {
+                            status.text = "LOCAL • model installation failed"
+                            Toast.makeText(this@MainActivity, error.message ?: "Could not install the RedAI brain.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+
     private val pickUserAvatar = registerForActivityResult(ActivityResultContracts.OpenDocument()) { saveImageUri("user_avatar", it) }
     private val pickAiAvatar = registerForActivityResult(ActivityResultContracts.OpenDocument()) { saveImageUri("ai_avatar", it) }
     private val pickWallpaper = registerForActivityResult(ActivityResultContracts.OpenDocument()) { saveImageUri("wallpaper", it) }
@@ -452,6 +537,14 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             pickModel.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*"))
         }, LinearLayout.LayoutParams(dp(105), dp(43)))
         brainCard.addView(modelRow)
+        brainCard.addView(button("↓  INSTALL REDAI BRAIN  •  1.1 GB", true) {
+            downloadRecommendedBrain()
+        }, LinearLayout.LayoutParams(-1, dp(43)).apply {
+            topMargin = dp(8)
+        })
+        brainCard.addView(tv("One-time model download • checksum verified • stored privately on this phone", 9f, muted).apply {
+            setPadding(dp(2), dp(6), dp(2), 0)
+        })
         shell.addView(brainCard, LinearLayout.LayoutParams(-1, -2).apply {
             bottomMargin = dp(9)
         })
