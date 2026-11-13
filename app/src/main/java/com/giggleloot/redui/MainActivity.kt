@@ -1007,7 +1007,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
     private fun send(fromVoice:Boolean) {
         val prompt=input.text.toString().trim(); val f=model
         if(prompt.isEmpty() || generating)return
-        if(f==null){status.text="LOCAL • import RedAI.gguf first";return}
+        if(f==null){status.text="REDAI • complete the one-time private setup to begin";if(::brainButton.isInitialized){brainButton.text="ACTIVATE REDAI";brainButton.isEnabled=true};return}
         speech?.stopListening(); input.text.clear()
         msgs.add(ChatMessage("user",prompt));adapter.notifyItemInserted(msgs.lastIndex);saveCurrentChat()
         msgs.add(ChatMessage("assistant",""));val ai=msgs.lastIndex;adapter.notifyItemInserted(ai);rv.scrollToPosition(ai)
@@ -1091,10 +1091,13 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         val now = SystemClock.uptimeMillis()
                         val previous = lastUiPaint.get()
                         if (now - previous >= 45L && lastUiPaint.compareAndSet(previous, now)) {
+                            val displayText = cleanForDisplay(rawReply.toString())
                             runOnUiThread {
-                                msgs[ai] = msgs[ai].copy(text=cleanForDisplay(rawReply.toString()))
-                                adapter.notifyItemChanged(ai)
-                                rv.scrollToPosition(ai)
+                                msgs[ai] = msgs[ai].copy(text=displayText)
+                                // Update only the visible streaming TextView. A full adapter rebind
+                                // on every token repeatedly rebuilds links, avatars and bubble UI.
+                                (rv.findViewHolderForAdapterPosition(ai) as? ChatAdapter.V)?.text?.text = displayText
+                                if (rv.scrollState == RecyclerView.SCROLL_STATE_IDLE) rv.scrollToPosition(ai)
                             }
                         }
                     }
@@ -1103,6 +1106,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         val cleanReply = cleanForDisplay(rawReply.toString())
                         val completeReply = if (webSourceList.isNotBlank()) cleanReply + "\n\nSources (live search):\n" + webSourceList else cleanReply
                         msgs[ai]=msgs[ai].copy(text=completeReply)
+                        adapter.notifyItemChanged(ai)
                         saveCurrentChat()
                         webContext="";webSourceList="";webStatusContext=""
                         status.text=if (usedWebEvidence || searchRequested) "WEB • answer grounded • RedAI" else "REDAI • ready"
