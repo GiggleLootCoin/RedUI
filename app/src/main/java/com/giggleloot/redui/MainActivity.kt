@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.OpenableColumns
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -52,6 +53,7 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var store: ModelStore
@@ -59,6 +61,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var currentChatId: String = ""
     private var currentChatProfileId: String = ""
     private lateinit var status: TextView
+    private lateinit var brainButton: Button
     private lateinit var voiceState: TextView
     private lateinit var input: EditText
     private lateinit var rv: RecyclerView
@@ -517,9 +520,10 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         brainCard.addView(tv("One assistant. One private space. Your conversations stay on this phone.", 10f, Color.rgb(185, 177, 185)).apply {
             setPadding(0, dp(7), 0, dp(11))
         })
-        brainCard.addView(button("ACTIVATE REDAI", true) {
+        brainButton = button("ACTIVATE REDAI", true) {
             downloadRecommendedBrain()
-        }, LinearLayout.LayoutParams(-1, dp(46)))
+        }
+        brainCard.addView(brainButton, LinearLayout.LayoutParams(-1, dp(46)))
         brainCard.addView(tv("Secure one-time setup • verified before activation", 8.5f, Color.rgb(151, 143, 153)).apply {
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, 0)
@@ -1070,8 +1074,20 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                 }
                 withContext(Dispatchers.Main){status.text="REDAI • thinking"}
                 val rawReply = StringBuilder()
+                val lastUiPaint = AtomicLong(0L)
                 LlamaBridge.generateStream(buildPrompt(prompt),object:GenStream{
-                    override fun onDelta(t:String){runOnUiThread{rawReply.append(t);msgs[ai]=msgs[ai].copy(text=cleanForDisplay(rawReply.toString()));adapter.notifyItemChanged(ai);rv.scrollToPosition(ai)}}
+                    override fun onDelta(t:String) {
+                        rawReply.append(t)
+                        val now = SystemClock.uptimeMillis()
+                        val previous = lastUiPaint.get()
+                        if (now - previous >= 45L && lastUiPaint.compareAndSet(previous, now)) {
+                            runOnUiThread {
+                                msgs[ai] = msgs[ai].copy(text=cleanForDisplay(rawReply.toString()))
+                                adapter.notifyItemChanged(ai)
+                                rv.scrollToPosition(ai)
+                            }
+                        }
+                    }
                     override fun onComplete(){runOnUiThread{
                         generating=false
                         val cleanReply = cleanForDisplay(rawReply.toString())
@@ -2015,8 +2031,16 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         model = officialBrain.takeIf { it.isFile && it.length() == 1_107_408_736L }
         if (model == null) {
             status.text = "REDAI • finish the one-time setup to begin"
+            if (::brainButton.isInitialized) {
+                brainButton.text = "ACTIVATE REDAI"
+                brainButton.isEnabled = true
+            }
         } else {
             status.text = "REDAI • private intelligence ready"
+            if (::brainButton.isInitialized) {
+                brainButton.text = "REDAI IS READY"
+                brainButton.isEnabled = false
+            }
         }
     }
 }
