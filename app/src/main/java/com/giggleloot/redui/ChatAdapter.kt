@@ -43,15 +43,15 @@ class ChatAdapter(
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.TOP
-            setPadding(4.dp(this), 6.dp(this), 4.dp(this), 6.dp(this))
+            setPadding(3.dp(this), 8.dp(this), 3.dp(this), 8.dp(this))
         }
         val avatar = ImageView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(34.dp(this), 34.dp(this))
+            layoutParams = LinearLayout.LayoutParams(36.dp(this), 36.dp(this))
             scaleType = ImageView.ScaleType.CENTER_CROP
         }
         val bubble = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(14.dp(this), 10.dp(this), 14.dp(this), 11.dp(this))
+            setPadding(15.dp(this), 12.dp(this), 15.dp(this), 13.dp(this))
         }
         val label = TextView(context).apply {
             textSize = 10f
@@ -62,7 +62,7 @@ class ChatAdapter(
         val text = TextView(context).apply {
             setTextColor(Color.rgb(246, 243, 245))
             textSize = 15f
-            setLineSpacing(2.dp(this).toFloat(), 1.02f)
+            setLineSpacing(3.dp(this).toFloat(), 1.04f)
             maxWidth = 276.dp(this)
         }
         bubble.addView(label)
@@ -94,9 +94,9 @@ class ChatAdapter(
             (Color.green(first) * (1f - amount) + Color.green(second) * amount).toInt().coerceIn(0, 255),
             (Color.blue(first) * (1f - amount) + Color.blue(second) * amount).toInt().coerceIn(0, 255)
         )
-        val bubbleTop = if (user) shade(accent, .48f) else Color.rgb(31, 29, 36)
-        val bubbleBottom = if (user) shade(accent, .30f) else Color.rgb(18, 18, 24)
-        val radius = dp(19).toFloat()
+        val bubbleTop = if (user) shade(accent, .42f) else Color.rgb(34, 31, 38)
+        val bubbleBottom = if (user) shade(accent, .27f) else Color.rgb(19, 18, 23)
+        val radius = dp(21).toFloat()
         val tail = dp(6).toFloat()
         holder.bubble.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
@@ -108,14 +108,14 @@ class ChatAdapter(
                 floatArrayOf(radius, radius, radius, radius, radius, radius, tail, tail)
             setStroke(dp(1), if (user) accent else shade(accent, .42f))
         }
-        holder.bubble.elevation = dp(3).toFloat()
+        holder.bubble.elevation = dp(2).toFloat()
         holder.avatar.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(if (user) Color.rgb(48, 48, 54) else shade(accent, .24f))
             setStroke(dp(1), if (user) Color.rgb(105, 105, 115) else accent)
         }
         holder.avatar.clipToOutline = true
-        holder.label.text = if (user) "YOU" else "RED AI"
+        holder.label.text = if (user) "YOU" else "REDAI"
         holder.label.setTextColor(if (user) mix(accent, Color.WHITE, .55f) else accent)
         holder.text.text = item.text
         Linkify.addLinks(holder.text, Linkify.WEB_URLS)
@@ -136,8 +136,8 @@ class ChatAdapter(
             runCatching { holder.avatar.setImageURI(Uri.parse(reference)) }
                 .onFailure { holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f))) }
         } else holder.avatar.setImageDrawable(ColorDrawable(if (user) Color.DKGRAY else shade(accent, .62f)))
-        val maxBubble = (holder.row.resources.displayMetrics.widthPixels - dp(90)).coerceAtLeast(dp(180))
-        val bubbleParams = LinearLayout.LayoutParams(dp(276).coerceAtMost(maxBubble), -2)
+        val maxBubble = (holder.row.resources.displayMetrics.widthPixels - dp(82)).coerceAtLeast(dp(190))
+        val bubbleParams = LinearLayout.LayoutParams(dp(286).coerceAtMost(maxBubble), -2)
         if (user) {
             holder.row.addView(holder.bubble, bubbleParams)
             holder.row.addView(holder.avatar)

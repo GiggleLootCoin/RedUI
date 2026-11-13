@@ -6,9 +6,12 @@
 
 This branch rebuilds the main Android screen and visual identity while retaining the existing native chat, local GGUF inference, saved conversations, privacy storage, character profiles, offline voice library, hands-free voice controls, web research, attachments, OCR and image studio.
 
-## Current model setup
+## Unified RedAI setup
 
-RedAI is delivered as one Android application. The 1.1 GB RedAI Q4_K_M GGUF is installed into the app's private storage through the in-app **INSTALL REDAI BRAIN** action; users do not need to locate or manually import the model file. The first-run installer asks for confirmation, recommends Wi-Fi, checks available storage, downloads the official release and SHA-256 sidecar, checks the sidecar against the pinned release digest, verifies the complete model before activation, and removes incomplete downloads. An existing model is re-verified before RedAI treats it as installed. The model remains a separate large download rather than being embedded in the APK, keeping the app installer practical for Android distribution. Manual GGUF import remains available for compatible alternative models.
+RedAI is presented as one Android assistant with one managed private intelligence package. The interface does not expose GGUF terminology, alternate model choices, or a manual model-file picker. On first launch, RedAI offers a single setup flow for its official Qwen3-1.7B Q4_K_M brain. The package is downloaded once into app-private storage, checked against the pinned SHA-256 digest, and verified again when the app starts. Existing unrelated model files are left untouched and are not offered as choices.
+
+The APK and intelligence package remain separate downloads in this build. This keeps the Android installer smaller; it is not represented as a single-file APK containing the model. Wi-Fi and approximately 1.2 GB of free space are recommended for first-time setup. The model runs locally after installation; optional web search is a separate network feature.
+
 
 ## Brand
 

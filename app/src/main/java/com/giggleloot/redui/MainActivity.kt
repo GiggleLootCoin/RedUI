@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.OpenableColumns
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -52,14 +53,15 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var store: ModelStore
     private lateinit var chatStore: ChatSessionStore
     private var currentChatId: String = ""
     private var currentChatProfileId: String = ""
-    private lateinit var spinner: Spinner
     private lateinit var status: TextView
+    private lateinit var brainButton: Button
     private lateinit var voiceState: TextView
     private lateinit var input: EditText
     private lateinit var rv: RecyclerView
@@ -149,58 +151,6 @@ RedAI can run local GGUF models offline. The host may separately provide web sea
 Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer useful alternatives. Preserve user autonomy and privacy. Your aim is not to sound infallible or agree with everything. Your aim is to be genuinely useful, truthful, discerning, creative, fair-minded and willing to say: I don't know yet.
 \n/no_think\n
     """.trimIndent()
-    private val pickModel = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri ?: return@registerForActivityResult
-        lifecycleScope.launch(Dispatchers.IO) {
-            var partial: File? = null
-            try {
-                val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-                    ?.use { if (it.moveToFirst()) it.getString(0) else "model.gguf" } ?: "model.gguf"
-                if (!name.endsWith(".gguf", true)) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, "RedAI only imports .GGUF model files. ZIP files are not models.", Toast.LENGTH_LONG).show()
-                    }
-                    return@launch
-                }
-                val declaredSize = contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
-                    ?.use { if (it.moveToFirst()) it.getLong(0) else -1L } ?: -1L
-                val requiredSpace = if (declaredSize > 0L) declaredSize + 64L * 1024L * 1024L else 0L
-                if (requiredSpace > 0L && filesDir.usableSpace < requiredSpace) {
-                    throw IllegalStateException("Not enough free storage to safely import this GGUF. Free some space and try again.")
-                }
-                val target = store.destination(name)
-                target.parentFile?.mkdirs()
-                val temp = File(target.parentFile, target.name + ".partial")
-                partial = temp
-                if (temp.exists()) temp.delete()
-                withContext(Dispatchers.Main) { status.text = "LOCAL • importing GGUF • " + name }
-                val source = contentResolver.openInputStream(uri)
-                    ?: throw IllegalStateException("Android could not open the selected GGUF file.")
-                source.use { input -> temp.outputStream().use { output -> input.copyTo(output); output.flush() } }
-                if (!temp.isFile || temp.length() == 0L) {
-                    throw IllegalStateException("The selected GGUF was empty or the copy was interrupted.")
-                }
-                if (target.exists() && !target.delete()) {
-                    throw IllegalStateException("Could not replace the previous model file safely.")
-                }
-                if (!temp.renameTo(target)) {
-                    throw IllegalStateException("The GGUF copy completed but could not be moved into the model library.")
-                }
-                partial = null
-                withContext(Dispatchers.Main) {
-                    refresh(target.name)
-                    status.text = "LOCAL • GGUF imported • " + target.name
-                    Toast.makeText(this@MainActivity, "GGUF imported successfully.", Toast.LENGTH_SHORT).show()
-                }
-            } catch (error: Throwable) {
-                try { partial?.delete() } catch (_: Throwable) {}
-                withContext(Dispatchers.Main) {
-                    status.text = "LOCAL • model import failed"
-                    Toast.makeText(this@MainActivity, error.message ?: "Could not import the GGUF model.", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
     private val redAiBrainSha256 = "cae181d040062a935aa03f16798d3615bf2d4256ffa292ffa820be8e346ea628"
 
     private fun sha256File(file: File): String {
@@ -220,7 +170,12 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         val modelSize = 1_107_408_736L
         val target = store.destination("RedAI.gguf")
         if (target.isFile && target.length() == modelSize) {
-            status.text = "LOCAL • verifying installed RedAI brain…"
+            model = null
+            status.text = "REDAI • checking your private intelligence…"
+            if (::brainButton.isInitialized) {
+                brainButton.text = "VERIFYING REDAI…"
+                brainButton.isEnabled = false
+            }
             lifecycleScope.launch(Dispatchers.IO) {
                 val valid = runCatching { sha256File(target) == redAiBrainSha256 }.getOrDefault(false)
                 withContext(Dispatchers.Main) {
@@ -229,7 +184,12 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         status.text = "LOCAL • RedAI brain verified and ready"
                     } else {
                         target.delete()
-                        status.text = "LOCAL • installed model failed integrity check; reinstall required"
+                        model = null
+                        status.text = "REDAI • setup needs to be repeated"
+                        if (::brainButton.isInitialized) {
+                            brainButton.text = "ACTIVATE REDAI"
+                            brainButton.isEnabled = true
+                        }
                         Toast.makeText(this@MainActivity, "The stored model did not pass its SHA-256 check. Please install it again.", Toast.LENGTH_LONG).show()
                     }
                 }
@@ -237,10 +197,10 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             return
         }
         AlertDialog.Builder(this)
-            .setTitle("Install the RedAI brain?")
-            .setMessage("This installs RedAI's verified 1.1 GB GGUF model directly into the app's private storage. It is a one-time download, not a manual file import. Wi-Fi is strongly recommended. Keep the app open and allow enough free storage.")
+            .setTitle("Activate RedAI?")
+            .setMessage("This securely installs RedAI's private intelligence package (about 1.1 GB) into the app's private storage. It is a one-time setup. Wi-Fi is strongly recommended. Keep the app open and allow enough free storage.")
             .setNegativeButton("NOT NOW", null)
-            .setPositiveButton("DOWNLOAD MODEL") { _, _ ->
+            .setPositiveButton("SET UP REDAI") { _, _ ->
                 lifecycleScope.launch(Dispatchers.IO) {
                     val temp = File(target.parentFile, target.name + ".partial")
                     var checksumConnection: HttpURLConnection? = null
@@ -295,7 +255,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         connection = null
                         if (copied != modelSize) throw IllegalStateException("The download was incomplete (" + copied + " of " + modelSize + " bytes). Try again on a stable Wi-Fi connection.")
                         val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
-                        if (actualHash != expectedHash || actualHash != redAiBrainSha256) throw IllegalStateException("The model checksum did not match the trusted RedAI release. The file was rejected.")
+                        if (actualHash != expectedHash || actualHash != redAiBrainSha256) throw IllegalStateException("RedAI could not verify its private intelligence package. The download was rejected.")
                         if (target.exists() && !target.delete()) throw IllegalStateException("Could not replace the existing model safely.")
                         if (!temp.renameTo(target)) throw IllegalStateException("The verified model could not be moved into RedAI storage.")
                         withContext(Dispatchers.Main) {
@@ -354,7 +314,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
 
         window.decorView.post {
             try { applyWallpaper() } catch (_: Throwable) {}
-            try { refresh() } catch (_: Throwable) { status.text = "LOCAL • ready" }
+            try { refresh(); downloadRecommendedBrain() } catch (_: Throwable) { status.text = "REDAI • ready" }
             try { loadCurrentChat() } catch (_: Throwable) {}
 
             // Initialize speech only after the first frame is on screen. The previous
@@ -494,7 +454,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
 
         val shell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(8))
+            setPadding(dp(17), dp(10), dp(17), dp(10))
         }
         root.addView(shell, FrameLayout.LayoutParams(-1, -1))
 
@@ -516,12 +476,12 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         }
         identity.addView(TextView(this).apply {
             text = "RedAI"
-            textSize = 26f
+            textSize = 29f
             typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
             setTextColor(Color.WHITE)
-            letterSpacing = -.045f
+            letterSpacing = -.055f
         })
-        identity.addView(tv("BY LITTLE RED BIG SMILE", 8.5f, red).apply {
+        identity.addView(tv("CREATED BY LITTLEREDBIGSMILE", 8f, Color.rgb(255, 111, 124)).apply {
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = .17f
         })
@@ -532,56 +492,54 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         header.addView(button("⋯") { showSettings() }, LinearLayout.LayoutParams(dp(43), dp(43)))
         shell.addView(header)
 
-        // Model and privacy status
+        // Unified RedAI intelligence surface: one assistant, one managed brain.
+        // Model format and alternate model selection are intentionally not exposed.
         val brainCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = panel(surface, Color.rgb(91, 31, 40), 19)
-            setPadding(dp(13), dp(11), dp(11), dp(11))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(34, 13, 19), Color.rgb(18, 16, 21), Color.rgb(13, 13, 17))
+            ).apply {
+                cornerRadius = dp(22).toFloat()
+                setStroke(dp(1), Color.rgb(112, 34, 49))
+            }
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            elevation = dp(3).toFloat()
         }
         val brainTop = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         val brainInfo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        brainInfo.addView(tv("YOUR PRIVATE AI", 8f, muted).apply {
+        brainInfo.addView(tv("PRIVATE INTELLIGENCE", 8.5f, Color.rgb(255, 116, 128)).apply {
             typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = .16f
+            letterSpacing = .19f
         })
-        brainInfo.addView(tv("Active model", 14f, Color.WHITE).apply {
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+        brainInfo.addView(tv("RedAI, ready when you are.", 17f, Color.WHITE).apply {
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            letterSpacing = -.025f
         })
         brainTop.addView(brainInfo, LinearLayout.LayoutParams(0, -2, 1f))
-        brainTop.addView(tv("●  LOCAL", 9f, Color.rgb(255, 104, 112)).apply {
+        brainTop.addView(tv("●  ON-DEVICE", 8f, Color.rgb(255, 143, 151)).apply {
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = .08f
+            background = panel(Color.rgb(48, 19, 27), Color.rgb(115, 42, 55), 20)
+            setPadding(dp(9), dp(7), dp(9), dp(7))
         })
         brainCard.addView(brainTop)
-        val modelRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(8), 0, 0)
-        }
-        spinner = Spinner(this).apply {
-            background = panel(surfaceRaised, Color.rgb(57, 54, 61), 12)
-            setPadding(dp(7), 0, dp(7), 0)
-        }
-        modelRow.addView(spinner, LinearLayout.LayoutParams(0, dp(43), 1f).apply {
-            rightMargin = dp(7)
+        brainCard.addView(tv("One assistant. One private space. Your conversations stay on this phone.", 10f, Color.rgb(185, 177, 185)).apply {
+            setPadding(0, dp(7), 0, dp(11))
         })
-        modelRow.addView(button("＋ MODEL", true) {
-            pickModel.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*"))
-        }, LinearLayout.LayoutParams(dp(105), dp(43)))
-        brainCard.addView(modelRow)
-        brainCard.addView(button("↓  INSTALL REDAI BRAIN  •  1.1 GB", true) {
+        brainButton = button("ACTIVATE REDAI", true) {
             downloadRecommendedBrain()
-        }, LinearLayout.LayoutParams(-1, dp(43)).apply {
-            topMargin = dp(8)
-        })
-        brainCard.addView(tv("One-time model download • checksum verified • stored privately on this phone", 9f, muted).apply {
-            setPadding(dp(2), dp(6), dp(2), 0)
+        }
+        brainCard.addView(brainButton, LinearLayout.LayoutParams(-1, dp(46)))
+        brainCard.addView(tv("Secure one-time setup • verified before activation", 8.5f, Color.rgb(151, 143, 153)).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, 0)
         })
         shell.addView(brainCard, LinearLayout.LayoutParams(-1, -2).apply {
-            bottomMargin = dp(9)
+            bottomMargin = dp(10)
         })
 
         status = tv("Preparing your private studio…", 10f, Color.rgb(194, 190, 198)).apply {
@@ -970,7 +928,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             Toast.makeText(this,"Speech recognition is not available on this phone",Toast.LENGTH_LONG).show()
             return
         }
-        if (model==null) { status.text="LOCAL • import RedAI.gguf first"; return }
+        if (model==null) { status.text="REDAI • complete the one-time setup to begin"; return }
         handsFree=true; speakReplies=true; speechRetryCount=0
         status.text = if (speechUsesOnDevice) "MIC • on-device speech recognition ready" else "MIC • system speech recognition ready"
         startListening()
@@ -1118,16 +1076,28 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                 LlamaBridge.updateGenerateParams(temperature, maxTokens, topP, topK, repeatPenalty,
                     contextLength, threads, useMmap, flashAttention, batchSize, gpuLayers)
                 if (reloadModel) {
-                    withContext(Dispatchers.Main){status.text="LOCAL • loading • "+f.name}
-                    if(!LlamaBridge.initGenerateModel(f.absolutePath))throw Exception("Could not load GGUF")
+                    withContext(Dispatchers.Main){status.text="REDAI • preparing your private intelligence"}
+                    if(!LlamaBridge.initGenerateModel(f.absolutePath))throw Exception("RedAI could not start its local intelligence engine.")
                     loadedModelPath = f.absolutePath
                     loadedModelConfig = modelConfig
                     try { LlamaBridge.initMtp(f.absolutePath, 3) } catch (_: Throwable) {}
                 }
-                withContext(Dispatchers.Main){status.text="LOCAL • generating • "+f.name}
+                withContext(Dispatchers.Main){status.text="REDAI • thinking"}
                 val rawReply = StringBuilder()
+                val lastUiPaint = AtomicLong(0L)
                 LlamaBridge.generateStream(buildPrompt(prompt),object:GenStream{
-                    override fun onDelta(t:String){runOnUiThread{rawReply.append(t);msgs[ai]=msgs[ai].copy(text=cleanForDisplay(rawReply.toString()));adapter.notifyItemChanged(ai);rv.scrollToPosition(ai)}}
+                    override fun onDelta(t:String) {
+                        rawReply.append(t)
+                        val now = SystemClock.uptimeMillis()
+                        val previous = lastUiPaint.get()
+                        if (now - previous >= 45L && lastUiPaint.compareAndSet(previous, now)) {
+                            runOnUiThread {
+                                msgs[ai] = msgs[ai].copy(text=cleanForDisplay(rawReply.toString()))
+                                adapter.notifyItemChanged(ai)
+                                rv.scrollToPosition(ai)
+                            }
+                        }
+                    }
                     override fun onComplete(){runOnUiThread{
                         generating=false
                         val cleanReply = cleanForDisplay(rawReply.toString())
@@ -1135,7 +1105,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         msgs[ai]=msgs[ai].copy(text=completeReply)
                         saveCurrentChat()
                         webContext="";webSourceList="";webStatusContext=""
-                        status.text=if (usedWebEvidence || searchRequested) "WEB • answer grounded • "+f.name else "LOCAL • ready • "+f.name
+                        status.text=if (usedWebEvidence || searchRequested) "WEB • answer grounded • RedAI" else "REDAI • ready"
                         if(handsFree)voiceState.text="SPEAKING • you can interrupt"
                         val reply=cleanForSpeech(cleanReply)
                         if(speakReplies)speak(reply) else if(handsFree)startListening()
@@ -1377,7 +1347,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
 
     private fun confirmDeleteAllChats() {
         AlertDialog.Builder(this).setTitle("Delete all saved chats?")
-            .setMessage("This permanently removes saved conversations from this phone. It does not delete your GGUF model.")
+            .setMessage("This permanently removes saved conversations from this phone. Your RedAI setup remains installed.")
             .setNegativeButton("CANCEL",null)
             .setPositiveButton("DELETE ALL"){_,_->
                 chatStore.deleteAll()
@@ -2065,16 +2035,22 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         }
     }
 
-    private fun refresh(selected:String?=null){
-        if(!::store.isInitialized||!::spinner.isInitialized)return
-        val fs=store.all()
-        val names=if(fs.isEmpty())listOf("No GGUF imported") else fs.map{it.name}
-        spinner.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,names)
-        spinner.onItemSelectedListener=object:AdapterView.OnItemSelectedListener{
-            override fun onNothingSelected(p:AdapterView<*>?){}
-            override fun onItemSelected(p:AdapterView<*>?,v:View?,i:Int,id:Long){model=fs.getOrNull(i);status.text=if(model==null)"LOCAL • import RedAI.gguf" else "LOCAL • "+model!!.name}
+    private fun refresh(selected:String?=null) {
+        if (!::store.isInitialized) return
+        val officialBrain = store.destination("RedAI.gguf")
+        model = officialBrain.takeIf { it.isFile && it.length() == 1_107_408_736L }
+        if (model == null) {
+            status.text = "REDAI • finish the one-time setup to begin"
+            if (::brainButton.isInitialized) {
+                brainButton.text = "ACTIVATE REDAI"
+                brainButton.isEnabled = true
+            }
+        } else {
+            status.text = "REDAI • private intelligence ready"
+            if (::brainButton.isInitialized) {
+                brainButton.text = "REDAI IS READY"
+                brainButton.isEnabled = false
+            }
         }
-        val preferred=selected?:fs.firstOrNull{it.name.equals("RedAI.gguf",true)}?.name
-        preferred?.let{x->val i=names.indexOf(x);if(i>=0){spinner.setSelection(i);model=fs.getOrNull(i)}}
     }
 }
