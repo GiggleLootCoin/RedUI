@@ -312,7 +312,7 @@ jobs:
           grep -q 'versionCode = 167' app/build.gradle.kts
           grep -q 'UserPersonaStore(this).promptContext()' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'PERFORMANCE CENTER' app/src/main/java/com/giggleloot/redui/MainActivity.kt
-          grep -q 'FASTEST POSSIBLE' app/src/main/java/com/giggleloot/redui/MainActivity.kt
+          grep -q 'DEEP REASONING' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'currentThermalStatus' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'loadedModelConfig != modelConfig' app/src/main/java/com/giggleloot/redui/MainActivity.kt
           grep -q 'android:allowBackup="false"' app/src/main/AndroidManifest.xml
