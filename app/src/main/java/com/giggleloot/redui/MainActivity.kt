@@ -181,7 +181,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                 withContext(Dispatchers.Main) {
                     if (valid) {
                         refresh(target.name)
-                        status.text = "LOCAL • RedAI brain verified and ready"
+                        status.text = "REDAI • private intelligence verified and ready"
                     } else {
                         target.delete()
                         model = null
