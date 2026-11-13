@@ -170,7 +170,8 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         val modelSize = 1_107_408_736L
         val target = store.destination("RedAI.gguf")
         if (target.isFile && target.length() == modelSize) {
-            status.text = "LOCAL • verifying installed RedAI brain…"
+            model = null
+            status.text = "REDAI • checking your private intelligence…"
             lifecycleScope.launch(Dispatchers.IO) {
                 val valid = runCatching { sha256File(target) == redAiBrainSha256 }.getOrDefault(false)
                 withContext(Dispatchers.Main) {
@@ -179,7 +180,8 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         status.text = "LOCAL • RedAI brain verified and ready"
                     } else {
                         target.delete()
-                        status.text = "LOCAL • installed model failed integrity check; reinstall required"
+                        model = null
+                        status.text = "REDAI • setup needs to be repeated"
                         Toast.makeText(this@MainActivity, "The stored model did not pass its SHA-256 check. Please install it again.", Toast.LENGTH_LONG).show()
                     }
                 }
@@ -187,10 +189,10 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             return
         }
         AlertDialog.Builder(this)
-            .setTitle("Install the RedAI brain?")
-            .setMessage("This installs RedAI's verified 1.1 GB GGUF model directly into the app's private storage. It is a one-time download, not a manual file import. Wi-Fi is strongly recommended. Keep the app open and allow enough free storage.")
+            .setTitle("Activate RedAI?")
+            .setMessage("This securely installs RedAI's private intelligence package (about 1.1 GB) into the app's private storage. It is a one-time setup. Wi-Fi is strongly recommended. Keep the app open and allow enough free storage.")
             .setNegativeButton("NOT NOW", null)
-            .setPositiveButton("DOWNLOAD MODEL") { _, _ ->
+            .setPositiveButton("SET UP REDAI") { _, _ ->
                 lifecycleScope.launch(Dispatchers.IO) {
                     val temp = File(target.parentFile, target.name + ".partial")
                     var checksumConnection: HttpURLConnection? = null
@@ -245,7 +247,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         connection = null
                         if (copied != modelSize) throw IllegalStateException("The download was incomplete (" + copied + " of " + modelSize + " bytes). Try again on a stable Wi-Fi connection.")
                         val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
-                        if (actualHash != expectedHash || actualHash != redAiBrainSha256) throw IllegalStateException("The model checksum did not match the trusted RedAI release. The file was rejected.")
+                        if (actualHash != expectedHash || actualHash != redAiBrainSha256) throw IllegalStateException("RedAI could not verify its private intelligence package. The download was rejected.")
                         if (target.exists() && !target.delete()) throw IllegalStateException("Could not replace the existing model safely.")
                         if (!temp.renameTo(target)) throw IllegalStateException("The verified model could not be moved into RedAI storage.")
                         withContext(Dispatchers.Main) {
@@ -304,7 +306,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
 
         window.decorView.post {
             try { applyWallpaper() } catch (_: Throwable) {}
-            try { refresh() } catch (_: Throwable) { status.text = "LOCAL • ready" }
+            try { refresh(); downloadRecommendedBrain() } catch (_: Throwable) { status.text = "REDAI • ready" }
             try { loadCurrentChat() } catch (_: Throwable) {}
 
             // Initialize speech only after the first frame is on screen. The previous
@@ -1337,7 +1339,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
 
     private fun confirmDeleteAllChats() {
         AlertDialog.Builder(this).setTitle("Delete all saved chats?")
-            .setMessage("This permanently removes saved conversations from this phone. It does not delete your GGUF model.")
+            .setMessage("This permanently removes saved conversations from this phone. Your RedAI setup remains installed.")
             .setNegativeButton("CANCEL",null)
             .setPositiveButton("DELETE ALL"){_,_->
                 chatStore.deleteAll()
