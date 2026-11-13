@@ -527,7 +527,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             setPadding(dp(9), dp(7), dp(9), dp(7))
         })
         brainCard.addView(brainTop)
-        brainCard.addView(tv("One assistant. One private space. Your conversations stay on this phone.", 10f, Color.rgb(185, 177, 185)).apply {
+        brainCard.addView(tv("One assistant. One private space. Local chats and the private model stay on this phone.", 10f, Color.rgb(185, 177, 185)).apply {
             setPadding(0, dp(7), 0, dp(11))
         })
         brainButton = button("ACTIVATE REDAI", true) {
@@ -1478,10 +1478,6 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
     private fun applyPerformancePreset(name: String) {
         val edit = prefs.edit()
         when (name) {
-            "FASTEST" -> edit.putFloat("gen_temperature", .70f).putInt("gen_max_tokens", 160)
-                .putFloat("gen_top_p", .90f).putInt("gen_top_k", 40)
-                .putFloat("gen_repeat_penalty", 1.10f).putInt("gen_context", 1024)
-                .putInt("gen_threads", 4).putInt("gen_batch", 128)
             "DEEP" -> edit.putFloat("gen_temperature", .70f).putInt("gen_max_tokens", 384)
                 .putFloat("gen_top_p", .90f).putInt("gen_top_k", 40)
                 .putFloat("gen_repeat_penalty", 1.10f).putInt("gen_context", 2048)
@@ -1517,19 +1513,17 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         }
         val summary = "DEVICE • $ramGiB GB RAM • $freeMiB MB available\nTHERMAL • $thermalLabel\nPROFILE • ${prefs.getString("gen_preset", "AUTO")}\nACTIVE • ${prefs.getInt("gen_context", 1024)} context • ${prefs.getInt("gen_max_tokens", 160)} reply tokens • ${prefs.getInt("gen_threads", 4)} CPU threads • batch ${prefs.getInt("gen_batch", 32)}\nSAMPLING • temperature ${prefs.getFloat("gen_temperature", .70f)} • top-p ${prefs.getFloat("gen_top_p", .90f)} • top-k ${prefs.getInt("gen_top_k", 40)} • repeat ${prefs.getFloat("gen_repeat_penalty", 1.10f)}\nMODEL • memory-mapped • CPU mode\nSAFETY • reduces context, batch and threads when memory or temperature requires it"
         val choices = arrayOf(
-            "AUTO • best settings with live safety protection",
-            "FASTEST POSSIBLE • 1K context, 128 batch",
-            "BEST PERFORMANCE • 2K context, 128 batch",
-            "DEEP REASONING • longer replies, 2K context",
+            "AUTO • adaptive settings with live safety protection",
+            "BEST PERFORMANCE • full standard context and replies",
+            "DEEP REASONING • longer replies and 2K context",
             "MANUAL • tune each setting"
         )
         AlertDialog.Builder(this).setTitle("PERFORMANCE CENTER").setMessage(summary)
             .setItems(choices) { _, which ->
                 when (which) {
                     0 -> applyAutoPerformancePreset()
-                    1 -> applyPerformancePreset("FASTEST")
-                    2 -> applyPerformancePreset("BEST PERFORMANCE")
-                    3 -> applyPerformancePreset("DEEP")
+                    1 -> applyPerformancePreset("BEST PERFORMANCE")
+                    2 -> applyPerformancePreset("DEEP")
                     else -> showManualPerformanceSettings()
                 }
             }.setNegativeButton("CLOSE", null).show()
