@@ -172,6 +172,10 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         if (target.isFile && target.length() == modelSize) {
             model = null
             status.text = "REDAI • checking your private intelligence…"
+            if (::brainButton.isInitialized) {
+                brainButton.text = "VERIFYING REDAI…"
+                brainButton.isEnabled = false
+            }
             lifecycleScope.launch(Dispatchers.IO) {
                 val valid = runCatching { sha256File(target) == redAiBrainSha256 }.getOrDefault(false)
                 withContext(Dispatchers.Main) {
@@ -182,6 +186,10 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                         target.delete()
                         model = null
                         status.text = "REDAI • setup needs to be repeated"
+                        if (::brainButton.isInitialized) {
+                            brainButton.text = "ACTIVATE REDAI"
+                            brainButton.isEnabled = true
+                        }
                         Toast.makeText(this@MainActivity, "The stored model did not pass its SHA-256 check. Please install it again.", Toast.LENGTH_LONG).show()
                     }
                 }
