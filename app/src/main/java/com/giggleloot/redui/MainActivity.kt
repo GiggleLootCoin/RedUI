@@ -197,14 +197,23 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                     }
                     temporary.delete()
                     val digest = MessageDigest.getInstance("SHA-256")
-                    assets.open("RedAI.gguf").buffered(256 * 1024).use { input ->
-                        temporary.outputStream().buffered(256 * 1024).use { output ->
-                            val buffer = ByteArray(256 * 1024)
-                            while (true) {
-                                val count = input.read(buffer)
-                                if (count < 0) break
-                                output.write(buffer, 0, count)
-                                digest.update(buffer, 0, count)
+                    val brainParts = assets.list("redai_brain")
+                        ?.filter { it.endsWith(".bin") }
+                        ?.sorted()
+                        .orEmpty()
+                    if (brainParts.isEmpty()) {
+                        throw IllegalStateException("The built-in RedAI brain parts are missing from this app package.")
+                    }
+                    temporary.outputStream().buffered(256 * 1024).use { output ->
+                        val buffer = ByteArray(256 * 1024)
+                        brainParts.forEach { part ->
+                            assets.open("redai_brain/$part").buffered(256 * 1024).use { input ->
+                                while (true) {
+                                    val count = input.read(buffer)
+                                    if (count < 0) break
+                                    output.write(buffer, 0, count)
+                                    digest.update(buffer, 0, count)
+                                }
                             }
                         }
                     }
