@@ -205,6 +205,10 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                 }
 
                 if (!existingIsValid) {
+                    if (target.exists() && !target.delete()) {
+                        throw IllegalStateException("The old local RedAI brain could not be replaced safely.")
+                    }
+                    verifiedMarker.delete()
                     val requiredSpace = modelSize + 96L * 1024L * 1024L
                     if (filesDir.usableSpace < requiredSpace) {
                         throw IllegalStateException("RedAI needs about 1.2 GB of free internal storage to prepare its built-in intelligence.")
