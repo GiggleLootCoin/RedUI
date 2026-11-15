@@ -166,116 +166,93 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun downloadRecommendedBrain() {
+    private fun installBundledBrain() {
+        if (!::store.isInitialized) return
         val modelSize = 1_107_408_736L
         val target = store.destination("RedAI.gguf")
-        if (target.isFile && target.length() == modelSize) {
-            model = null
-            status.text = "REDAI • checking your private intelligence…"
-            if (::brainButton.isInitialized) {
-                brainButton.text = "VERIFYING REDAI…"
-                brainButton.isEnabled = false
-            }
-            lifecycleScope.launch(Dispatchers.IO) {
-                val valid = runCatching { sha256File(target) == redAiBrainSha256 }.getOrDefault(false)
-                withContext(Dispatchers.Main) {
-                    if (valid) {
-                        refresh(target.name)
-                        status.text = "REDAI • private intelligence verified and ready"
-                    } else {
-                        target.delete()
-                        model = null
-                        status.text = "REDAI • setup needs to be repeated"
-                        if (::brainButton.isInitialized) {
-                            brainButton.text = "ACTIVATE REDAI"
-                            brainButton.isEnabled = true
-                        }
-                        Toast.makeText(this@MainActivity, "The stored model did not pass its SHA-256 check. Please install it again.", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-            return
+        model = null
+        if (::brainButton.isInitialized) {
+            brainButton.text = "VERIFYING BUNDLED REDAI…"
+            brainButton.isEnabled = false
         }
-        AlertDialog.Builder(this)
-            .setTitle("Activate RedAI?")
-            .setMessage("This securely installs RedAI's private intelligence package (about 1.1 GB) into the app's private storage. It is a one-time setup. Wi-Fi is strongly recommended. Keep the app open and allow enough free storage.")
-            .setNegativeButton("NOT NOW", null)
-            .setPositiveButton("SET UP REDAI") { _, _ ->
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val temp = File(target.parentFile, target.name + ".partial")
-                    var checksumConnection: HttpURLConnection? = null
-                    var connection: HttpURLConnection? = null
-                    try {
-                        val required = modelSize + 96L * 1024L * 1024L
-                        if (filesDir.usableSpace < required) {
-                            throw IllegalStateException("RedAI needs about 1.2 GB of free storage to install this model safely.")
-                        }
-                        target.parentFile?.mkdirs()
-                        if (temp.exists()) temp.delete()
-                        withContext(Dispatchers.Main) { status.text = "REDAI • downloading model • 0%" }
-                        checksumConnection = (URL("https://github.com/GiggleLootCoin/RedAI/releases/download/redai-latest/RedAI.gguf.sha256").openConnection() as HttpURLConnection).apply {
-                            connectTimeout = 20000
-                            readTimeout = 30000
-                            instanceFollowRedirects = true
-                            setRequestProperty("User-Agent", "RedAI-Android")
-                        }
-                        val checksumText = checksumConnection.inputStream.bufferedReader().use { it.readText() }
-                        checksumConnection.disconnect()
-                        checksumConnection = null
-                        val expectedHash = Regex("(?i)\\b[0-9a-f]{64}\\b").find(checksumText)?.value?.lowercase()
-                            ?: throw IllegalStateException("The official RedAI model checksum could not be read. No model was installed.")
-                        if (expectedHash != redAiBrainSha256) throw IllegalStateException("The published model checksum differs from the trusted RedAI release. Installation stopped.")
-                        connection = (URL("https://github.com/GiggleLootCoin/RedAI/releases/download/redai-latest/RedAI.gguf").openConnection() as HttpURLConnection).apply {
-                            connectTimeout = 30000
-                            readTimeout = 90000
-                            instanceFollowRedirects = true
-                            setRequestProperty("User-Agent", "RedAI-Android")
-                        }
-                        if (connection.responseCode !in 200..299) throw IllegalStateException("Model download failed: HTTP " + connection.responseCode)
-                        val digest = MessageDigest.getInstance("SHA-256")
-                        var copied = 0L
-                        connection.inputStream.use { input ->
-                            temp.outputStream().buffered(256 * 1024).use { output ->
-                                val buffer = ByteArray(256 * 1024)
-                                while (true) {
-                                    val count = input.read(buffer)
-                                    if (count < 0) break
-                                    output.write(buffer, 0, count)
-                                    digest.update(buffer, 0, count)
-                                    copied += count
-                                    if (copied > modelSize) throw IllegalStateException("The downloaded model is larger than the published release. Download stopped.")
-                                    if (copied % (8L * 1024L * 1024L) < buffer.size) {
-                                        val percent = (copied * 100L / modelSize).toInt().coerceIn(0, 99)
-                                        withContext(Dispatchers.Main) { status.text = "REDAI • downloading model • " + percent + "%" }
-                                    }
-                                }
+        if (::status.isInitialized) status.text = "REDAI • verifying the intelligence included in this app…"
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val temporary = File(target.parentFile, "RedAI.gguf.partial")
+            try {
+                target.parentFile?.mkdirs()
+                val existingIsValid = target.isFile &&
+                    target.length() == modelSize &&
+                    sha256File(target) == redAiBrainSha256 &&
+                    FileInputStream(target).use { input ->
+                        val magic = ByteArray(4)
+                        input.read(magic) == 4 && magic.contentEquals(byteArrayOf(0x47, 0x47, 0x55, 0x46))
+                    }
+
+                if (!existingIsValid) {
+                    val requiredSpace = modelSize + 96L * 1024L * 1024L
+                    if (filesDir.usableSpace < requiredSpace) {
+                        throw IllegalStateException("RedAI needs about 1.2 GB of free internal storage to prepare its built-in intelligence.")
+                    }
+                    temporary.delete()
+                    val digest = MessageDigest.getInstance("SHA-256")
+                    assets.open("RedAI.gguf").buffered(256 * 1024).use { input ->
+                        temporary.outputStream().buffered(256 * 1024).use { output ->
+                            val buffer = ByteArray(256 * 1024)
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                output.write(buffer, 0, count)
+                                digest.update(buffer, 0, count)
                             }
                         }
-                        connection.disconnect()
-                        connection = null
-                        if (copied != modelSize) throw IllegalStateException("The download was incomplete (" + copied + " of " + modelSize + " bytes). Try again on a stable Wi-Fi connection.")
-                        val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
-                        if (actualHash != expectedHash || actualHash != redAiBrainSha256) throw IllegalStateException("RedAI could not verify its private intelligence package. The download was rejected.")
-                        if (target.exists() && !target.delete()) throw IllegalStateException("Could not replace the existing model safely.")
-                        if (!temp.renameTo(target)) throw IllegalStateException("The verified model could not be moved into RedAI storage.")
-                        withContext(Dispatchers.Main) {
-                            refresh(target.name)
-                            status.text = "LOCAL • verified RedAI brain installed"
-                            Toast.makeText(this@MainActivity, "RedAI brain installed and checksum verified.", Toast.LENGTH_LONG).show()
+                    }
+                    if (!temporary.isFile || temporary.length() != modelSize) {
+                        throw IllegalStateException("The built-in RedAI brain is incomplete. The app package may be damaged.")
+                    }
+                    val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
+                    val hasGgufMagic = FileInputStream(temporary).use { input ->
+                        val magic = ByteArray(4)
+                        input.read(magic) == 4 && magic.contentEquals(byteArrayOf(0x47, 0x47, 0x55, 0x46))
+                    }
+                    if (actualHash != redAiBrainSha256 || !hasGgufMagic) {
+                        throw IllegalStateException("The built-in RedAI brain failed its integrity check. No model was activated.")
+                    }
+                    if (target.exists() && !target.delete()) {
+                        throw IllegalStateException("Could not safely replace the previous local RedAI brain.")
+                    }
+                    if (!temporary.renameTo(target)) {
+                        temporary.copyTo(target, overwrite = true)
+                        temporary.delete()
+                        if (sha256File(target) != redAiBrainSha256) {
+                            target.delete()
+                            throw IllegalStateException("The verified RedAI brain could not be installed safely.")
                         }
-                    } catch (error: Throwable) {
-                        try { temp.delete() } catch (_: Throwable) {}
-                        withContext(Dispatchers.Main) {
-                            status.text = "LOCAL • model installation failed"
-                            Toast.makeText(this@MainActivity, error.message ?: "Could not install the RedAI brain.", Toast.LENGTH_LONG).show()
-                        }
-                    } finally {
-                        try { checksumConnection?.disconnect() } catch (_: Throwable) {}
-                        try { connection?.disconnect() } catch (_: Throwable) {}
                     }
                 }
+
+                withContext(Dispatchers.Main) {
+                    model = target
+                    refresh(target.name)
+                    status.text = "LOCAL • built-in RedAI intelligence verified and ready"
+                    if (::brainButton.isInitialized) {
+                        brainButton.text = "REDAI IS READY"
+                        brainButton.isEnabled = false
+                    }
+                }
+            } catch (error: Throwable) {
+                temporary.delete()
+                model = null
+                withContext(Dispatchers.Main) {
+                    status.text = "LOCAL • built-in intelligence could not be prepared"
+                    if (::brainButton.isInitialized) {
+                        brainButton.text = "RETRY VERIFICATION"
+                        brainButton.isEnabled = true
+                    }
+                    Toast.makeText(this@MainActivity, error.message ?: "RedAI could not verify its built-in intelligence.", Toast.LENGTH_LONG).show()
+                }
             }
-            .show()
+        }
     }
 
     private val pickUserAvatar = registerForActivityResult(ActivityResultContracts.OpenDocument()) { saveImageUri("user_avatar", it) }
@@ -314,7 +291,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
 
         window.decorView.post {
             try { applyWallpaper() } catch (_: Throwable) {}
-            try { refresh(); downloadRecommendedBrain() } catch (_: Throwable) { status.text = "REDAI • ready" }
+            try { installBundledBrain() } catch (_: Throwable) { status.text = "REDAI • built-in setup unavailable" }
             try { loadCurrentChat() } catch (_: Throwable) {}
 
             // Initialize speech only after the first frame is on screen. The previous
@@ -530,11 +507,11 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         brainCard.addView(tv("One assistant. One private space. Local chats and the private model stay on this phone.", 10f, Color.rgb(185, 177, 185)).apply {
             setPadding(0, dp(7), 0, dp(11))
         })
-        brainButton = button("ACTIVATE REDAI", true) {
-            downloadRecommendedBrain()
+        brainButton = button("VERIFY BUNDLED REDAI", true) {
+            installBundledBrain()
         }
         brainCard.addView(brainButton, LinearLayout.LayoutParams(-1, dp(46)))
-        brainCard.addView(tv("Secure one-time setup • verified before activation", 8.5f, Color.rgb(151, 143, 153)).apply {
+        brainCard.addView(tv("Bundled inside this app • verified before activation", 8.5f, Color.rgb(151, 143, 153)).apply {
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, 0)
         })
@@ -1007,7 +984,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
     private fun send(fromVoice:Boolean) {
         val prompt=input.text.toString().trim(); val f=model
         if(prompt.isEmpty() || generating)return
-        if(f==null){status.text="REDAI • complete the one-time private setup to begin";if(::brainButton.isInitialized){brainButton.text="ACTIVATE REDAI";brainButton.isEnabled=true};return}
+        if(f==null){status.text="REDAI • built-in intelligence is not ready yet";if(::brainButton.isInitialized){brainButton.text="RETRY VERIFICATION";brainButton.isEnabled=true};return}
         speech?.stopListening(); input.text.clear()
         msgs.add(ChatMessage("user",prompt));adapter.notifyItemInserted(msgs.lastIndex);saveCurrentChat()
         msgs.add(ChatMessage("assistant",""));val ai=msgs.lastIndex;adapter.notifyItemInserted(ai);rv.scrollToPosition(ai)
