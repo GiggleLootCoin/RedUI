@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: ["main", "redai-bundled-ui"]
   push:
-    branches: ["main"]
+    branches: ["main", "redai-bundled-ui"]
 
 permissions:
   contents: read
@@ -438,7 +438,7 @@ jobs:
           )
           {
             echo "Release: RedAI v${GITHUB_RUN_NUMBER}"
-            echo "App version: 167"
+            echo "App version: 168"
             echo "Package: com.giggleloot.redui"
             echo "Minimum Android: 10 (API 29)"
             echo "Commit: ${GITHUB_SHA}"
