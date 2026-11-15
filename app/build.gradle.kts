@@ -12,6 +12,7 @@ val hasProductionSigning = listOf(
 ).all { !it.isNullOrBlank() }
 
 android {
+    androidResources { noCompress += "gguf" }
     signingConfigs {
         create("production") {
             if (hasProductionSigning) {
@@ -28,8 +29,8 @@ android {
         applicationId = "com.giggleloot.redui"
         minSdk = 29
         targetSdk = 35
-        versionCode = 167
-        versionName = "167"
+        versionCode = 168
+        versionName = "168"
     }
     splits {
         abi {
