@@ -12,7 +12,7 @@ val hasProductionSigning = listOf(
 ).all { !it.isNullOrBlank() }
 
 android {
-    androidResources { noCompress += "gguf" }
+    androidResources { noCompress += listOf("gguf", "bin") }
     signingConfigs {
         create("production") {
             if (hasProductionSigning) {
