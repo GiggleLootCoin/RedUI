@@ -1,0 +1,12 @@
+RedAI bundled foundation model notice
+
+Foundation model: Qwen3-1.7B
+Distribution format: GGUF Q4_K_M
+Model file: RedAI.gguf
+SHA-256: cae181d040062a935aa03f16798d3615bf2d4256ffa292ffa820be8e346ea628
+
+The Qwen3-1.7B foundation weights are third-party model weights distributed under the Apache License 2.0. The model authors and original publisher retain attribution for those weights. Red did not create the underlying Qwen foundation weights.
+
+Red (LittleRedBigSmile) created and developed the RedAI product, Android application experience, assistant identity and personalization. RedAI is a distinct assistant built on the third-party foundation model.
+
+The bundled model is provided for local, offline inference. No model download, model account, paid API or alternative model is required at runtime.
