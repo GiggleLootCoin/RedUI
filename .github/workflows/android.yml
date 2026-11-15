@@ -43,18 +43,37 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p app/src/main/assets
-          MODEL="app/src/main/assets/RedAI.gguf"
+          MODEL="/tmp/RedAI.gguf"
+          ASSETS="app/src/main/assets/redai_brain"
+          mkdir -p "$ASSETS"
           curl --fail --location --retry 5 --retry-all-errors --connect-timeout 30 \
             "https://github.com/GiggleLootCoin/RedAI/releases/download/redai-latest/RedAI.gguf" \
             -o "$MODEL"
           echo "cae181d040062a935aa03f16798d3615bf2d4256ffa292ffa820be8e346ea628  $MODEL" | sha256sum --check
+          split --bytes=32M --numeric-suffixes=0 --suffix-length=3 --additional-suffix=.bin \
+            "$MODEL" "$ASSETS/brain-"
+          rm -f "$MODEL"
           python3 - <<'PY'
+          import hashlib
           from pathlib import Path
-          model = Path("app/src/main/assets/RedAI.gguf")
-          with model.open("rb") as f:
-              assert f.read(4) == b"GGUF", "Bundled RedAI brain is not a GGUF file"
-          assert model.stat().st_size == 1_107_408_736, "Unexpected RedAI brain size"
-          print(f"Verified the fixed RedAI brain: {model.stat().st_size:,} bytes")
+          parts = sorted(Path("app/src/main/assets/redai_brain").glob("brain-*.bin"))
+          assert len(parts) == 34, f"Expected 34 model chunks, found {len(parts)}"
+          digest = hashlib.sha256()
+          total = 0
+          first = True
+          for part in parts:
+              with part.open("rb") as stream:
+                  while True:
+                      block = stream.read(1024 * 1024)
+                      if not block: break
+                      if first:
+                          assert block[:4] == b"GGUF", "Bundled RedAI brain is not a GGUF file"
+                          first = False
+                      digest.update(block)
+                      total += len(block)
+          assert total == 1_107_408_736, f"Unexpected RedAI brain size: {total}"
+          assert digest.hexdigest() == "cae181d040062a935aa03f16798d3615bf2d4256ffa292ffa820be8e346ea628", "Chunked RedAI brain checksum mismatch"
+          print(f"Verified {len(parts)} memory-safe chunks containing {total:,} bytes of RedAI brain.")
           PY
 
       - name: Prepare bundled offline voice engine
@@ -296,7 +315,7 @@ jobs:
           fi
 
       - name: Build release APK
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
+        run: gradle :app:assembleRelease --no-daemon --max-workers=2 --stacktrace
 
       - name: Locate built APK
         run: |
@@ -347,21 +366,26 @@ jobs:
           grep -q 'CharacterStudioActivity' app/src/main/AndroidManifest.xml
           grep -q 'ImageStudioActivity' app/src/main/AndroidManifest.xml
           echo "Checking APK contains every real bundled TTS model, tokens, espeak data, test WAV, and core assets:"
-          unzip -l "$APK" | grep -q "assets/RedAI.gguf"
+          unzip -l "$APK" | grep -q "assets/redai_brain/brain-000.bin"
           unzip -l "$APK" | grep -q "assets/RED AI MODEL NOTICE.txt"
           python3 - "$APK" <<'PY'
           import hashlib, sys, zipfile
           expected = "cae181d040062a935aa03f16798d3615bf2d4256ffa292ffa820be8e346ea628"
           with zipfile.ZipFile(sys.argv[1]) as apk:
-              with apk.open("assets/RedAI.gguf") as model:
-                  digest = hashlib.sha256()
-                  magic = model.read(4)
-                  assert magic == b"GGUF", "Packaged RedAI asset is not GGUF"
-                  digest.update(magic)
-                  while True:
-                      chunk = model.read(1024 * 1024)
-                      if not chunk: break
-                      digest.update(chunk)
+              parts = sorted(n for n in apk.namelist() if n.startswith("assets/redai_brain/brain-") and n.endswith(".bin"))
+              assert len(parts) == 34, f"Expected 34 packaged brain chunks, found {len(parts)}"
+              digest = hashlib.sha256()
+              total = 0
+              for part in parts:
+                  with apk.open(part) as model:
+                      while True:
+                          chunk = model.read(1024 * 1024)
+                          if not chunk: break
+                          if total == 0:
+                              assert chunk[:4] == b"GGUF", "Packaged RedAI brain is not GGUF"
+                          digest.update(chunk)
+                          total += len(chunk)
+              assert total == 1_107_408_736, f"Packaged brain size mismatch: {total}"
               assert digest.hexdigest() == expected, "Packaged RedAI brain checksum mismatch"
           print("Verified exact fixed RedAI GGUF inside the APK.")
           PY
