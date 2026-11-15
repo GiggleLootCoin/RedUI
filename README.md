@@ -8,9 +8,7 @@ This branch rebuilds the main Android screen and visual identity while retaining
 
 ## Unified RedAI setup
 
-RedAI is presented as one Android assistant with one managed private intelligence package. The interface does not expose GGUF terminology, alternate model choices, or a manual model-file picker. On first launch, RedAI offers a single setup flow for its official Qwen3-1.7B Q4_K_M brain. The package is downloaded once into app-private storage, checked against the pinned SHA-256 digest, and verified again when the app starts. Existing unrelated model files are left untouched and are not offered as choices.
-
-The APK and intelligence package remain separate downloads in this build. This keeps the Android installer smaller; it is not represented as a single-file APK containing the model. Wi-Fi and approximately 1.2 GB of free space are recommended for first-time setup. The model runs locally after installation; optional web search is a separate network feature.
+RedAI is presented as one Android assistant with one managed private intelligence package. The interface does not expose GGUF terminology, alternate model choices, or a manual model-file picker. RedAI contains one fixed Qwen3-1.7B Q4_K_M brain inside the APK. The build downloads the pinned official GGUF, verifies its SHA-256 and GGUF file signature, and packages it as an uncompressed app asset. On first launch, the app copies that asset into private storage and verifies it again before enabling chat. There is no model picker, model upload, alternate model support, separate model download, or runtime model-host dependency. Allow approximately 1.2 GB of free internal storage for the first-run private copy. Once installed, local inference works offline; optional web research is a separate network feature.
 
 
 ## Brand
