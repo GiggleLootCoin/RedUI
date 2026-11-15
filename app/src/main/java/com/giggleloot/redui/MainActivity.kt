@@ -182,9 +182,12 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             val temporary = File(target.parentFile, "RedAI.gguf.partial")
             try {
                 target.parentFile?.mkdirs()
+                val verifiedMarker = File(target.parentFile, "RedAI.gguf.verified")
+                val expectedMarker = "$redAiBrainSha256\n$modelSize\n${target.lastModified()}"
                 val existingIsValid = target.isFile &&
                     target.length() == modelSize &&
-                    sha256File(target) == redAiBrainSha256 &&
+                    verifiedMarker.isFile &&
+                    verifiedMarker.readText(Charsets.UTF_8) == expectedMarker &&
                     FileInputStream(target).use { input ->
                         val magic = ByteArray(4)
                         input.read(magic) == 4 && magic.contentEquals(byteArrayOf(0x47, 0x47, 0x55, 0x46))
@@ -239,6 +242,10 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                             throw IllegalStateException("The verified RedAI brain could not be installed safely.")
                         }
                     }
+                    verifiedMarker.writeText(
+                        "$redAiBrainSha256\n$modelSize\n${target.lastModified()}",
+                        Charsets.UTF_8
+                    )
                 }
 
                 withContext(Dispatchers.Main) {
@@ -674,7 +681,7 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
     private fun initLocalVoiceEngine() {
         cleanupLegacyVoiceData()
         var saved = prefs.getString("local_voice_key", "lessac") ?: "lessac"
-        if (saved !in (setOf("lessac", "amy", "cori", "alan", "alba", "jenny_dioco", "northern_english_male", "android") + (0..7).map { "kitten_$it" } + vctkSpeakerIds.map { "vctk_$it" })) saved = "lessac"
+        if (saved !in (setOf("lessac", "amy", "cori", "alan", "alba", "android") + (0..7).map { "kitten_$it" } + vctkSpeakerIds.map { "vctk_$it" })) saved = "lessac"
         localVoiceKey = saved
         prefs.edit().putString("local_voice_key", saved).putBoolean("local_voice", saved != "android").apply()
         status.text = "LOCAL • ready • RedAI voice: " + localVoiceLabel(saved)
@@ -834,8 +841,6 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
         "cori" -> "RedAI Bright British • Cori"
         "alan" -> "RedAI Deep British • Alan"
         "alba" -> "RedAI Warm British • Alba"
-        "jenny_dioco" -> "RedAI Friendly British • Jenny"
-        "northern_english_male" -> "RedAI Northern British • Male"
         "kitten_0" -> "Jasper • natural male"
         "kitten_1" -> "Bella • natural female"
         "kitten_2" -> "Bruno • natural male"
@@ -1602,8 +1607,6 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
             VoiceChoice("cori", "Bright British • Cori", "UK English • Piper High Quality"),
             VoiceChoice("alan", "Deep British • Alan", "UK English • Piper Medium"),
             VoiceChoice("alba", "Gentle British • Alba", "UK English • Piper Medium"),
-            VoiceChoice("jenny_dioco", "Friendly British • Jenny", "UK English • Piper Medium"),
-            VoiceChoice("northern_english_male", "Northern British • Male", "Northern UK English • Piper Medium")
         )
         val kitten = listOf(
             VoiceChoice("kitten_0", "Jasper", "Male • Kitten Mini • Voice 1"),
