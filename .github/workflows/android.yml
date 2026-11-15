@@ -87,8 +87,6 @@ jobs:
             "cori|vits-piper-en_GB-cori-high|en_GB-cori-high.onnx"
             "alan|vits-piper-en_GB-alan-medium|en_GB-alan-medium.onnx"
             "alba|vits-piper-en_GB-alba-medium|en_GB-alba-medium.onnx"
-            "jenny_dioco|vits-piper-en_GB-jenny_dioco-medium|en_GB-jenny_dioco-medium.onnx"
-            "northern_english_male|vits-piper-en_GB-northern_english_male-medium|en_GB-northern_english_male-medium.onnx"
             "vctk|vits-piper-en_GB-vctk-medium|en_GB-vctk-medium.onnx"
           )
           for spec in "${voices[@]}"; do
