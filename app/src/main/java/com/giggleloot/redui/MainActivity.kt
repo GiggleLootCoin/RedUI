@@ -184,14 +184,25 @@ Do no harm. Do not enable serious wrongdoing or dangerous harm; offer safer usef
                 target.parentFile?.mkdirs()
                 val verifiedMarker = File(target.parentFile, "RedAI.gguf.verified")
                 val expectedMarker = "$redAiBrainSha256\n$modelSize\n${target.lastModified()}"
-                val existingIsValid = target.isFile &&
+                val existingHeaderValid = target.isFile &&
                     target.length() == modelSize &&
-                    verifiedMarker.isFile &&
-                    verifiedMarker.readText(Charsets.UTF_8) == expectedMarker &&
                     FileInputStream(target).use { input ->
                         val magic = ByteArray(4)
                         input.read(magic) == 4 && magic.contentEquals(byteArrayOf(0x47, 0x47, 0x55, 0x46))
                     }
+                val markerMatches = verifiedMarker.isFile &&
+                    verifiedMarker.readText(Charsets.UTF_8) == expectedMarker
+                val existingIsValid = if (existingHeaderValid && markerMatches) {
+                    true
+                } else if (existingHeaderValid && sha256File(target) == redAiBrainSha256) {
+                    verifiedMarker.writeText(
+                        "$redAiBrainSha256\n$modelSize\n${target.lastModified()}",
+                        Charsets.UTF_8
+                    )
+                    true
+                } else {
+                    false
+                }
 
                 if (!existingIsValid) {
                     val requiredSpace = modelSize + 96L * 1024L * 1024L
